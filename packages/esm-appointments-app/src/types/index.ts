@@ -118,6 +118,7 @@ export interface MappedAppointment {
   recurring?: boolean;
   uuid?: string;
   providers?: Array<OpenmrsResource>;
+  identifier?: string;
 }
 
 export interface MappedHomeAppointment {
@@ -189,3 +190,5 @@ export enum AppointmentTypes {
   CHECKEDIN = 'checkedin',
   COMPLETED = 'completed',
 }
+
+export type CalendarType = 'daily' | 'weekly' | 'monthly';

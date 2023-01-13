@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import isEmpty from 'lodash-es/isEmpty';
+import { BehaviorSubject } from 'rxjs';
 import {
   Button,
   ButtonSet,
@@ -44,24 +45,34 @@ import {
   useAppointmentSummary,
   checkAppointmentConflict,
   useMonthlyAppointmentSummary,
-} from './appointment-forms.resource';
+} from '../appointment-forms/appointment-forms.resource';
 import { ConfigObject } from '../config-schema';
 import { useProviders } from '../hooks/useProviders';
 import { closeOverlay } from '../hooks/useOverlay';
 import { mockFrequency } from '../../__mocks__/appointments.mock';
-import WorkloadCard from './workload.component';
+import WorkloadCard from '../appointment-forms/workload.component';
 import first from 'lodash-es/first';
-import styles from './appointments-form.scss';
+import styles from '../appointment-forms/appointments-form.scss';
 import { useSWRConfig } from 'swr';
 import { useAppointmentDate } from '../helpers/time';
-import { getMonthlyCalendarDistribution, getWeeklyCalendarDistribution } from './workload-helper';
+import { getMonthlyCalendarDistribution, getWeeklyCalendarDistribution } from '../appointment-forms/workload-helper';
 
 interface AppointmentWidgetProps {
   appointment?: MappedAppointment;
   patientUuid?: string;
   context: string;
+  closeWorkspace?: () => void;
+  setHasSubmissibleValue?: (value: boolean) => void;
+  submissionNotifier: BehaviorSubject<{ isSubmitting: boolean }>;
 }
-const AppointmentWidget: React.FC<AppointmentWidgetProps> = ({ appointment, patientUuid, context }) => {
+const AppointmentWidget: React.FC<AppointmentWidgetProps> = ({
+  appointment,
+  patientUuid,
+  context,
+  closeWorkspace,
+  setHasSubmissibleValue,
+  submissionNotifier,
+}) => {
   const initialState = {
     patientUuid,
     dateTime: undefined,
@@ -126,25 +137,7 @@ const AppointmentWidget: React.FC<AppointmentWidgetProps> = ({ appointment, pati
   const isMissingRequirements = !selectedService || !appointmentType.length || !selectedProvider;
   const appointmentService = services?.find(({ uuid }) => uuid === selectedService);
 
-  useEffect(() => {
-    if (appointmentService) {
-      const [hours, minutes] = convertTime12to24(startDate, timeFormat);
-      const startDatetime = new Date(
-        dayjs(visitDate).year(),
-        dayjs(visitDate).month(),
-        dayjs(visitDate).date(),
-        hours,
-        minutes,
-      );
-      setEndDate(
-        dayjs(startDatetime)
-          .add(parseInt(appointmentService?.durationMins ?? '0'), 'minutes')
-          .format('hh:mm'),
-      );
-    }
-  }, [startDate, timeFormat, appointmentService, visitDate]);
-
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     const [hours, minutes] = convertTime12to24(startDate, timeFormat);
     const providerUuid =
       providers.find((provider) => provider.display === selectedProvider)?.uuid ?? appointment.providers[0].uuid;
@@ -219,24 +212,36 @@ const AppointmentWidget: React.FC<AppointmentWidgetProps> = ({ appointment, pati
         setIsSubmitting(false);
       },
     );
-  };
+  }, [startDate, timeFormat, visitDate]);
+
+  useEffect(() => {
+    if (appointmentService) {
+      const [hours, minutes] = convertTime12to24(startDate, timeFormat);
+      const startDatetime = new Date(
+        dayjs(visitDate).year(),
+        dayjs(visitDate).month(),
+        dayjs(visitDate).date(),
+        hours,
+        minutes,
+      );
+      setEndDate(
+        dayjs(startDatetime)
+          .add(parseInt(appointmentService?.durationMins ?? '0'), 'minutes')
+          .format('hh:mm'),
+      );
+    }
+    const subscription = submissionNotifier?.subscribe(({ isSubmitting }) => {
+      if (isSubmitting) {
+        handleSubmit();
+      }
+    });
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [startDate, timeFormat, appointmentService, visitDate, handleSubmit, submissionNotifier]);
 
   return (
     <div className={styles.formContainer}>
-      {isLoading ? (
-        <SkeletonText />
-      ) : (
-        <div className={styles.stickyFormHeader}>
-          <ExtensionSlot
-            extensionSlotName="patient-header-slot"
-            state={{
-              patient,
-              patientUuid: appointmentState.patientUuid,
-            }}
-          />
-        </div>
-      )}
-
       <div className={styles.childRow}>
         <div className={styles.row}>
           <Select

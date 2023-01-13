@@ -4,7 +4,7 @@ import styles from './patient-search.scss';
 import { closeOverlay, launchOverlay } from '../hooks/useOverlay';
 import { useTranslation } from 'react-i18next';
 
-import AppointmentForm from '../appointment-forms/appointment-widget.component';
+import AppointmentForm from '../appointment-widget/appointment-widget.component';
 
 const PatientSearch: React.FC = () => {
   const { t } = useTranslation();

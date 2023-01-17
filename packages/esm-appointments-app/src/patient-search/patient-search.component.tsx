@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { BehaviorSubject } from 'rxjs';
 import { ExtensionSlot } from '@openmrs/esm-framework';
 import styles from './patient-search.scss';
 import { closeOverlay, launchOverlay } from '../hooks/useOverlay';
 import { useTranslation } from 'react-i18next';
 
-import AppointmentForm from '../appointment-widget/appointment-widget.component';
+import AppointmentForm from '../appointment-forms/appointments-form.component';
 
 const PatientSearch: React.FC = () => {
   const { t } = useTranslation();

@@ -140,7 +140,8 @@ const AppointmentWidget: React.FC<AppointmentWidgetProps> = ({
   const handleSubmit = useCallback(async () => {
     const [hours, minutes] = convertTime12to24(startDate, timeFormat);
     const providerUuid =
-      providers.find((provider) => provider.display === selectedProvider)?.uuid ?? appointment.providers[0].uuid;
+      providers.find((provider) => provider.display === selectedProvider)?.uuid ??
+      (appointment ? appointment.providers[0].uuid : null);
     const startDatetime = new Date(
       dayjs(visitDate).year(),
       dayjs(visitDate).month(),

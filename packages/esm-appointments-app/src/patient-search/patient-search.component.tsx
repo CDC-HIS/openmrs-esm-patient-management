@@ -13,7 +13,7 @@ const PatientSearch: React.FC = () => {
     closeOverlay();
     launchOverlay(
       t('appointmentForm', 'Create Appointment'),
-      <AppointmentForm patientUuid={patient.uuid} context="creating" />,
+      <AppointmentForm closeOverlay={closeOverlay} patientUuid={patient.uuid} context="creating" />,
     );
   };
 

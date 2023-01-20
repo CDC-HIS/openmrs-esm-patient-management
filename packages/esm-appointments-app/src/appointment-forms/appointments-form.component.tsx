@@ -3,40 +3,8 @@ import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import { BehaviorSubject } from 'rxjs';
 import isEmpty from 'lodash-es/isEmpty';
-import {
-  Button,
-  ButtonSet,
-  ContentSwitcher,
-  DatePicker,
-  DatePickerInput,
-  RadioButton,
-  RadioButtonGroup,
-  Select,
-  SelectItem,
-  Switch,
-  TextArea,
-  TimePicker,
-  TimePickerSelect,
-  Toggle,
-  SkeletonText,
-  Tab,
-  TabList,
-  Tabs,
-  TabPanel,
-  TabPanels,
-  Layer,
-  TextInput,
-} from '@carbon/react';
-import {
-  useLocations,
-  useSession,
-  showToast,
-  showNotification,
-  ExtensionSlot,
-  usePatient,
-  useConfig,
-  parseDate,
-} from '@openmrs/esm-framework';
+import { Button, ButtonSet, SkeletonText } from '@carbon/react';
+import { ExtensionSlot, usePatient } from '@openmrs/esm-framework';
 import { AppointmentPayload, MappedAppointment } from '../types';
 import { amPm, convertTime12to24 } from '../helpers';
 import {
@@ -59,12 +27,12 @@ import { getMonthlyCalendarDistribution, getWeeklyCalendarDistribution } from '.
 import AppointmentWidget from '../appointment-widget/appointment-widget.component';
 
 interface AppointmentFormProps {
-  closeWorkspace?: () => void;
+  closeOverlay?: () => void;
   appointment?: MappedAppointment;
   patientUuid?: string;
   context: string;
 }
-const AppointmentForm: React.FC<AppointmentFormProps> = ({ closeWorkspace, appointment, patientUuid, context }) => {
+const AppointmentForm: React.FC<AppointmentFormProps> = ({ closeOverlay, appointment, patientUuid, context }) => {
   const initialState = {
     patientUuid,
     dateTime: undefined,
@@ -116,7 +84,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ closeWorkspace, appoi
       <AppointmentWidget
         appointment={appointment}
         patientUuid={patientUuid}
-        closeWorkspace={closeOverlay}
+        closeOverlay={closeOverlay}
         setHasSubmissibleValue={setHasSubmissibleValue}
         submissionNotifier={submissionNotifier}
         context={context}

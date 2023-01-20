@@ -61,7 +61,7 @@ interface AppointmentWidgetProps {
   appointment?: MappedAppointment;
   patientUuid?: string;
   context: string;
-  closeWorkspace?: () => void;
+  closeOverlay?: () => void;
   setHasSubmissibleValue?: (value: boolean) => void;
   submissionNotifier: BehaviorSubject<{ isSubmitting: boolean }>;
 }
@@ -69,7 +69,7 @@ const AppointmentWidget: React.FC<AppointmentWidgetProps> = ({
   appointment,
   patientUuid,
   context,
-  closeWorkspace,
+  closeOverlay,
   setHasSubmissibleValue,
   submissionNotifier,
 }) => {
@@ -213,7 +213,7 @@ const AppointmentWidget: React.FC<AppointmentWidgetProps> = ({
         setIsSubmitting(false);
       },
     );
-  }, [startDate, timeFormat, visitDate]);
+  }, [startDate, timeFormat, visitDate, selectedService, selectedProvider, selectedLocation, appointmentType]);
 
   useEffect(() => {
     if (appointmentService) {
@@ -239,7 +239,7 @@ const AppointmentWidget: React.FC<AppointmentWidgetProps> = ({
     return () => {
       subscription?.unsubscribe();
     };
-  }, [startDate, timeFormat, appointmentService, visitDate, handleSubmit, submissionNotifier]);
+  }, [startDate, timeFormat, appointmentService, visitDate, isSubmitting, handleSubmit, submissionNotifier]);
 
   return (
     <div className={styles.formContainer}>

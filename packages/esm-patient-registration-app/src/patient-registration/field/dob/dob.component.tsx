@@ -30,6 +30,7 @@ export const DobField: React.FC = () => {
   const {
     fieldConfigurations: { dateOfBirth },
   } = useConfig() as RegistrationConfig;
+  const defaultDate = new Date().getFullYear() + '-03-10';
   const [dobUnknown] = useField('birthdateEstimated');
   const dobKnown = !dobUnknown.value;
   const [birthdate, birthdateMeta] = useField('birthdate');
@@ -51,6 +52,7 @@ export const DobField: React.FC = () => {
     newDate.setHours(12);
     const refinedDate = date instanceof Date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000) : newDate;
     setFieldValue('birthdate', refinedDate);
+    console.log(refinedDate);
   };
 
   const onEstimatedYearsChange = (ev) => {
@@ -126,6 +128,7 @@ export const DobField: React.FC = () => {
               onChange={(e) => {
                 onDateChange([e]);
               }}
+              defaultValue={parseDate(defaultDate)}
               label="Date"></DatePicker>
           </Provider>
         </div>

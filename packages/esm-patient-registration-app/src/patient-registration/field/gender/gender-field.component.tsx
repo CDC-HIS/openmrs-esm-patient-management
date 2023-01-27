@@ -29,7 +29,6 @@ export const GenderField: React.FC = () => {
     <div className={styles.halfWidthInDesktopView}>
       <h4 className={styles.productiveHeading02Light}>{t('sexFieldLabelText', 'Sex')}</h4>
       <div className={styles.sexField}>
-        <p className="cds--label">{t('genderLabelText', 'Sex')}</p>
         <RadioButtonGroup name="gender" orientation="vertical" onChange={setGender} valueSelected={field.value}>
           {fieldConfigs.map((option) => (
             <RadioButton

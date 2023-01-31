@@ -5,6 +5,7 @@ import { FormValues } from '../patient-registration-types';
 export const validationSchema = Yup.object({
   givenName: Yup.string().required('givenNameRequired'),
   familyName: Yup.string().required('familyNameRequired'),
+  middleName: Yup.string().required('middleNameRequired'),
   additionalGivenName: Yup.string().when('addNameInLocalLanguage', {
     is: true,
     then: Yup.string().required('givenNameRequired'),

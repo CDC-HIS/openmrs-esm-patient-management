@@ -91,6 +91,7 @@ export const NameField = () => {
                   labelText={t('middleNameLabelText', 'Middle Name')}
                   light
                   checkWarning={checkNumber}
+                  required
                 />
               )}
               <Input

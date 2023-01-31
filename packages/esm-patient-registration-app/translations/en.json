@@ -32,6 +32,7 @@
   "estimatedAgeInYearsLabelText": "Estimated age in years",
   "familyNameLabelText": "Grand Father's Name",
   "familyNameRequired": "Grand Father's Name is required",
+  "middleNameRequired": "Father's Name is required",
   "female": "Female",
   "fieldErrorTitleMessage": "The following fields have errors:",
   "fullNameLabelText": "Full Name",

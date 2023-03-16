@@ -2,29 +2,29 @@ import { Type, validator, validators } from '@openmrs/esm-framework';
 
 export interface SectionDefinition {
   id: string;
-  name: string;
+  name?: string;
   fields: Array<string>;
 }
 
 export interface FieldDefinition {
   id: string;
   type: string;
-  label: string | null;
+  label?: string;
   uuid: string;
   placeholder: string;
   validation: {
     required: boolean;
-    matches: string | null;
+    matches?: string;
   };
-  answerConceptSetUuid: string | null;
+  answerConceptSetUuid?: string;
   customConceptAnswers: Array<CustomConceptAnswer>;
 }
 export interface CustomConceptAnswer {
-  label: string | null;
   uuid: string;
+  label?: string;
 }
 export interface Gender {
-  label: string | null;
+  label?: string;
   value: string;
   id: string;
 }
@@ -264,7 +264,7 @@ export const esmPatientRegistrationSchema = {
           _type: Type.Boolean,
           _description:
             "Whether to fill the addresses by levels, i.e. County => subCounty, the current field is dependent on it's previous field.",
-          _default: true,
+          _default: false,
         },
         useAddressHierarchyLabel: {
           _type: Type.Object,

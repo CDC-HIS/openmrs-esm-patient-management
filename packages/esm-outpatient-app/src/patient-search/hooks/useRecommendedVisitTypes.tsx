@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import { openmrsFetch, useConfig } from '@openmrs/esm-framework';
-import { OutpatientConfig } from '../../config-schema';
+import { ConfigObject, OutpatientConfig } from '../../config-schema';
 import { useMemo } from 'react';
 
 interface EnrollmentVisitType {
@@ -17,8 +17,9 @@ export const useRecommendedVisitTypes = (
   programUuid: string,
   locationUuid: string,
 ) => {
-  const { visitTypeResourceUrl, showRecommendedVisitTypeTab } = useConfig() as OutpatientConfig;
-  const { data, error } = useSWR<{ data: EnrollmentVisitType }>(
+  const { visitTypeResourceUrl } = useConfig() as OutpatientConfig;
+  const { showRecommendedVisitTypeTab } = useConfig() as ConfigObject;
+  const { data, error, isLoading } = useSWR<{ data: EnrollmentVisitType }>(
     showRecommendedVisitTypeTab &&
       patientUuid &&
       enrollmentUuid &&
@@ -28,7 +29,7 @@ export const useRecommendedVisitTypes = (
   );
 
   const recommendedVisitTypes = useMemo(() => data?.data?.visitTypes?.allowed.map(mapToVisitType) ?? [], [data]);
-  return { recommendedVisitTypes, error, isLoading: !data && !error };
+  return { recommendedVisitTypes, error, isLoading };
 };
 
 const mapToVisitType = (visitType) => {

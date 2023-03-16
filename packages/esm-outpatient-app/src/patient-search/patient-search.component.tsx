@@ -1,44 +1,43 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Overlay from '../overlay.component';
-import BasicSearch from './basic-search.component';
-import AdvancedSearch from './advanced-search.component';
 import PatientScheduledVisits from './patient-scheduled-visits.component';
-import SearchResults from './search-results.component';
 import VisitForm from './visit-form/visit-form.component';
 import { SearchTypes } from '../types';
 import QueueServiceForm from '../queue-services/queue-service-form.component';
+import QueueRoomForm from '../queue-rooms/queue-room-form.component';
 
 interface PatientSearchProps {
   closePanel: () => void;
   view?: string;
+  viewState: {
+    selectedPatientUuid?: string;
+  };
+  headerTitle?: string;
 }
 
-const PatientSearch: React.FC<PatientSearchProps> = ({ closePanel, view }) => {
+const PatientSearch: React.FC<PatientSearchProps> = ({ closePanel, view, viewState, headerTitle }) => {
   const { t } = useTranslation();
+  const { selectedPatientUuid } = viewState;
   const [searchType, setSearchType] = useState<SearchTypes>(
-    view == 'queue_service_form' ? SearchTypes.QUEUE_SERVICE_FORM : SearchTypes.BASIC,
+    view === 'queue_service_form'
+      ? SearchTypes.QUEUE_SERVICE_FORM
+      : view === 'queue_room_form'
+      ? SearchTypes.QUEUE_ROOM_FORM
+      : SearchTypes.SCHEDULED_VISITS,
   );
-  const [selectedPatientUuid, setSelectedPatientUuid] = useState('');
   const [newVisitMode, setNewVisitMode] = useState<boolean>(false);
 
-  const toggleSearchType = (searchType: SearchTypes, patientUuid: string = '', mode: boolean = false) => {
+  const toggleSearchType = (searchType: SearchTypes, mode: boolean = false) => {
     setSearchType(searchType);
-    setSelectedPatientUuid(patientUuid);
     setNewVisitMode(mode);
   };
 
   return (
     <>
-      <Overlay header={t('addPatientToQueue', 'Add patient to queue')} closePanel={closePanel}>
+      <Overlay header={headerTitle} closePanel={closePanel}>
         <div className="omrs-main-content">
-          {searchType === SearchTypes.BASIC ? (
-            <BasicSearch toggleSearchType={toggleSearchType} />
-          ) : searchType === SearchTypes.ADVANCED ? (
-            <AdvancedSearch toggleSearchType={toggleSearchType} />
-          ) : searchType === SearchTypes.SEARCH_RESULTS ? (
-            <SearchResults patients={[]} toggleSearchType={toggleSearchType} />
-          ) : searchType === SearchTypes.SCHEDULED_VISITS ? (
+          {searchType === SearchTypes.SCHEDULED_VISITS ? (
             <PatientScheduledVisits
               patientUuid={selectedPatientUuid}
               toggleSearchType={toggleSearchType}
@@ -53,6 +52,8 @@ const PatientSearch: React.FC<PatientSearchProps> = ({ closePanel, view }) => {
             />
           ) : searchType === SearchTypes.QUEUE_SERVICE_FORM ? (
             <QueueServiceForm toggleSearchType={toggleSearchType} closePanel={closePanel} />
+          ) : searchType === SearchTypes.QUEUE_ROOM_FORM ? (
+            <QueueRoomForm toggleSearchType={toggleSearchType} closePanel={closePanel} />
           ) : null}
         </div>
       </Overlay>

@@ -9,8 +9,8 @@ import {
   TileGroup,
   DataTableSkeleton,
   InlineLoading,
+  InlineNotification,
 } from '@carbon/react';
-import { ArrowLeft } from '@carbon/react/icons';
 import {
   formatDatetime,
   useLayoutType,
@@ -26,18 +26,25 @@ import {
   saveVisit,
   useVisitTypes,
   useVisit,
+  useConfig,
+  ConfigObject,
 } from '@openmrs/esm-framework';
-import { QueueEntryPayload, SearchTypes } from '../types';
+import { Appointment, SearchTypes } from '../types';
 import styles from './patient-scheduled-visits.scss';
 import { useScheduledVisits } from './hooks/useScheduledVisits';
 import isNil from 'lodash-es/isNil';
-import { usePriority, useServices, useStatus } from '../active-visits/active-visits-table.resource';
-import { useSWRConfig } from 'swr';
-import { saveQueueEntry } from './visit-form/queue.resource';
+import {
+  usePriority,
+  useServices,
+  useStatus,
+  useVisitQueueEntries,
+} from '../active-visits/active-visits-table.resource';
+import { addQueueEntry } from './visit-form/queue.resource';
 import { first } from 'rxjs/operators';
 import { convertTime12to24, amPm } from '../helpers/time-helpers';
 import dayjs from 'dayjs';
 import head from 'lodash-es/head';
+import { useQueueLocations } from './hooks/useQueueLocations';
 interface PatientScheduledVisitsProps {
   toggleSearchType: (searchMode: SearchTypes, patientUuid, mode) => void;
   patientUuid: string;
@@ -60,19 +67,25 @@ const ScheduledVisits: React.FC<{
   const [visitsIndex, setVisitsIndex] = useState(0);
   const [hasPriority, setHasPriority] = useState(false);
   const [priority, setPriority] = useState('');
-  const { priorities } = usePriority();
+  const { priorities, isLoading } = usePriority();
   const { statuses } = useStatus();
   const [userLocation, setUserLocation] = useState('');
   const locations = useLocations();
   const session = useSession();
   const { services } = useServices(userLocation);
-  const { mutate } = useSWRConfig();
+  const { mutate } = useVisitQueueEntries('', '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeFormat, setTimeFormat] = useState<amPm>(new Date().getHours() >= 12 ? 'PM' : 'AM');
   const [visitDate, setVisitDate] = useState(new Date());
   const [visitTime, setVisitTime] = useState(dayjs(new Date()).format('hh:mm'));
+  const [appointment, setAppointment] = useState<Appointment>();
+  const [patientId, setPatientId] = useState('');
   const allVisitTypes = useVisitTypes();
   const { currentVisit } = useVisit(patientUuid);
+  const config = useConfig() as ConfigObject;
+  const visitQueueNumberAttributeUuid = config.concepts.visitQueueNumberAttributeUuid;
+  const { queueLocations } = useQueueLocations();
+  const [selectedQueueLocation, setSelectedQueueLocation] = useState(queueLocations[0]?.id);
 
   useEffect(() => {
     if (!userLocation && session?.sessionLocation !== null) {
@@ -90,7 +103,7 @@ const ScheduledVisits: React.FC<{
       const visitType = [...allVisitTypes].shift().uuid;
 
       const payload: NewVisitPayload = {
-        patient: patientUuid,
+        patient: patientId,
         startDatetime: toDateObjectStrict(
           toOmrsIsoString(
             new Date(dayjs(visitDate).year(), dayjs(visitDate).month(), dayjs(visitDate).date(), hours, minutes),
@@ -101,8 +114,8 @@ const ScheduledVisits: React.FC<{
       };
 
       const service = head(services)?.uuid;
-      const status = statuses.find((data) => data.display.toLowerCase() === 'waiting').uuid;
-      const defaultPriority = priorities.find((data) => data.display.toLowerCase() === 'not urgent').uuid;
+      const defaultStatus = config.concepts.defaultStatusConceptUuid;
+      const defaultPriority = config.concepts.defaultPriorityConceptUuid;
 
       const abortController = new AbortController();
       if (currentVisit) {
@@ -119,56 +132,43 @@ const ScheduledVisits: React.FC<{
           .subscribe(
             (response) => {
               if (response.status === 201) {
-                const queuePayload: QueueEntryPayload = {
-                  visit: {
-                    uuid: response.data.uuid,
-                  },
-                  queueEntry: {
-                    status: {
-                      uuid: status,
-                    },
-                    priority: {
-                      uuid: priority ? priority : defaultPriority,
-                    },
-                    queue: {
-                      uuid: service,
-                    },
-                    patient: {
-                      uuid: patientUuid,
-                    },
-                    startedAt: toDateObjectStrict(toOmrsIsoString(new Date())),
-                  },
-                };
-
-                saveQueueEntry(queuePayload, abortController)
-                  .pipe(first())
-                  .subscribe(
-                    (response) => {
-                      if (response.status === 201) {
-                        showToast({
-                          kind: 'success',
-                          title: t('startVisit', 'Start a visit'),
-                          description: t(
-                            'startVisitQueueSuccessfully',
-                            'Patient has been added to active visits list and queue.',
-                            `${hours} : ${minutes}`,
-                          ),
-                        });
-                        closePanel();
-                        setIsSubmitting(false);
-                        mutate(`/ws/rest/v1/visit-queue-entry?v=full`);
-                      }
-                    },
-                    (error) => {
-                      showNotification({
-                        title: t('queueEntryError', 'Error adding patient to the queue'),
-                        kind: 'error',
-                        critical: true,
-                        description: error?.message,
+                addQueueEntry(
+                  response.data.uuid,
+                  patientId,
+                  priority ? priority : defaultPriority,
+                  defaultStatus,
+                  service,
+                  appointment,
+                  abortController,
+                  selectedQueueLocation,
+                  visitQueueNumberAttributeUuid,
+                ).then(
+                  ({ status }) => {
+                    if (status === 201) {
+                      showToast({
+                        kind: 'success',
+                        title: t('startVisit', 'Start a visit'),
+                        description: t(
+                          'startVisitQueueSuccessfully',
+                          'Patient has been added to active visits list and queue.',
+                          `${hours} : ${minutes}`,
+                        ),
                       });
+                      closePanel();
                       setIsSubmitting(false);
-                    },
-                  );
+                      mutate();
+                    }
+                  },
+                  (error) => {
+                    showNotification({
+                      title: t('queueEntryError', 'Error adding patient to the queue'),
+                      kind: 'error',
+                      critical: true,
+                      description: error?.message,
+                    });
+                    setIsSubmitting(false);
+                  },
+                );
               }
             },
             (error) => {
@@ -187,15 +187,16 @@ const ScheduledVisits: React.FC<{
       visitTime,
       timeFormat,
       allVisitTypes,
-      patientUuid,
+      patientId,
       visitDate,
       userLocation,
       services,
-      statuses,
-      priority,
+      config.concepts.defaultStatusConceptUuid,
+      config.concepts.defaultPriorityConceptUuid,
       currentVisit,
-      priorities,
       t,
+      priority,
+      appointment,
       closePanel,
       mutate,
     ],
@@ -216,15 +217,27 @@ const ScheduledVisits: React.FC<{
                   onClick={(e) => {
                     setHasPriority(true);
                     setVisitsIndex(ind);
+                    setPatientId(visit?.patient?.uuid);
+                    setAppointment(visit);
                   }}>
                   <div className={styles.helperText}>
                     <p className={styles.primaryText}>{visit.service?.name}</p>
                     <p className={styles.secondaryText}>
                       {' '}
-                      {formatDatetime(parseDate(visit?.startDateTime))} · {visit.service?.location?.name}{' '}
+                      {formatDatetime(parseDate(visit?.startDateTime))} · {visit.location?.name}{' '}
                     </p>
 
-                    {hasPriority && ind == visitsIndex ? (
+                    {isLoading ? (
+                      <DataTableSkeleton />
+                    ) : !priorities?.length ? (
+                      <InlineNotification
+                        className={styles.inlineNotification}
+                        kind={'error'}
+                        lowContrast
+                        subtitle={t('configurePriorities', 'Please configure priorities to continue.')}
+                        title={t('noPrioritiesConfigured', 'No priorities configured')}
+                      />
+                    ) : hasPriority && ind == visitsIndex ? (
                       <ContentSwitcher
                         size="sm"
                         selectedIndex={1}
@@ -233,17 +246,11 @@ const ScheduledVisits: React.FC<{
                           setPriority(e.name as any);
                           handleSubmit(e);
                         }}>
-                        {priorities?.length > 0 ? (
-                          priorities.map(({ uuid, display }) => {
-                            return <Switch name={uuid} text={display} value={uuid} />;
-                          })
-                        ) : (
-                          <Switch
-                            name={t('noPriorityFound', 'No priority found')}
-                            text={t('noPriorityFound', 'No priority found')}
-                            value={null}
-                          />
-                        )}
+                        {priorities?.length > 0
+                          ? priorities.map(({ uuid, display }) => {
+                              return <Switch name={uuid} text={display} value={uuid} />;
+                            })
+                          : null}
                       </ContentSwitcher>
                     ) : null}
                     {hasPriority && ind == visitsIndex && isSubmitting ? (
@@ -292,17 +299,6 @@ const PatientScheduledVisits: React.FC<PatientScheduledVisitsProps> = ({
 
   return (
     <div className={styles.container}>
-      <div className={styles.backButton}>
-        <Button
-          kind="ghost"
-          renderIcon={ArrowLeft}
-          iconDescription="Back to search results"
-          size="sm"
-          onClick={() => toggleSearchType(SearchTypes.BASIC, patientUuid, false)}>
-          <span>{t('backToSearchResults', 'Back to search results')}</span>
-        </Button>
-      </div>
-
       <ScheduledVisits
         visitType={visitType.RECENT}
         visits={appointments?.recentVisits}

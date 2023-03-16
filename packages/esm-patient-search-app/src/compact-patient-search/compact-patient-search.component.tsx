@@ -58,13 +58,7 @@ const CompactPatientSearchComponent: React.FC<CompactPatientSearchProps> = ({
     },
     [config.search, selectPatientAction, patients, handleCloseSearchResults],
   );
-  const focussedResult = useArrowNavigation(
-    inputRef,
-    patients?.length ?? 0,
-    handlePatientSelection,
-    handleFocusToInput,
-    -1,
-  );
+  const focussedResult = useArrowNavigation(patients?.length ?? 0, handlePatientSelection, handleFocusToInput, -1);
 
   useEffect(() => {
     if (bannerContainerRef.current && focussedResult > -1) {
@@ -83,7 +77,7 @@ const CompactPatientSearchComponent: React.FC<CompactPatientSearchProps> = ({
     (searchTerm) => {
       if (shouldNavigateToPatientSearchPage && searchTerm.trim()) {
         if (!isSearchPage) {
-          window.localStorage.setItem('searchReturnUrl', window.location.pathname);
+          window.sessionStorage.setItem('searchReturnUrl', window.location.pathname);
         }
         navigate({
           to: `\${openmrsSpaBase}/search?query=${encodeURIComponent(searchTerm)}`,
@@ -110,7 +104,7 @@ const CompactPatientSearchComponent: React.FC<CompactPatientSearchProps> = ({
         ref={inputRef}
       />
       {!isSearchPage && showSearchResults && (
-        <div className={styles.floatingSearchResultsContainer}>
+        <div className={styles.floatingSearchResultsContainer} data-testid="floatingSearchResultsContainer">
           <PatientSearch
             query={searchTerm}
             selectPatientAction={handlePatientSelection}

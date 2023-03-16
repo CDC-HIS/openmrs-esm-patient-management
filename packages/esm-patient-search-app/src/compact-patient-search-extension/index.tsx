@@ -65,13 +65,7 @@ const CompactPatientSearchComponent: React.FC<CompactPatientSearchProps> = ({
     inputRef.current.focus();
   }, [inputRef]);
 
-  const focussedResult = useArrowNavigation(
-    inputRef,
-    patients?.length ?? 0,
-    handlePatientSelection,
-    handleFocusToInput,
-    -1,
-  );
+  const focussedResult = useArrowNavigation(patients?.length ?? 0, handlePatientSelection, handleFocusToInput, -1);
 
   useEffect(() => {
     if (bannerContainerRef.current && focussedResult > -1) {
@@ -90,6 +84,7 @@ const CompactPatientSearchComponent: React.FC<CompactPatientSearchProps> = ({
     <div className={styles.patientSearchBar}>
       <form onSubmit={handleSubmit} className={styles.searchArea}>
         <Search
+          autoFocus
           className={styles.patientSearchInput}
           closeButtonLabelText={t('clearSearch', 'Clear')}
           labelText=""

@@ -1633,6 +1633,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@icap-ethiopia/esm-appointments-app@workspace:packages/esm-appointments-app":
+  version: 0.0.0-use.local
+  resolution: "@icap-ethiopia/esm-appointments-app@workspace:packages/esm-appointments-app"
+  dependencies:
+    "@carbon/react": ^1.12.0
+    formik: ^2.2.9
+    lodash-es: ^4.17.15
+    webpack: ^5.74.0
+    yup: ^0.32.11
+  peerDependencies:
+    "@openmrs/esm-framework": 4.x
+    react: 18.x
+    react-i18next: 11.x
+    react-router-dom: 6.x
+  languageName: unknown
+  linkType: soft
+
 "@istanbuljs/load-nyc-config@npm:^1.0.0":
   version: 1.1.0
   resolution: "@istanbuljs/load-nyc-config@npm:1.1.0"
@@ -3571,23 +3588,6 @@ __metadata:
   checksum: 501faf3c017b2d6a7c90cb45a843f631e7118d87777cb335a8a498077323fe62c7af7221f03c8dc8acd314b664c16d786ac420799d0cd4fda6e7910dfd885dd9
   languageName: node
   linkType: hard
-
-"@openmrs/esm-appointments-app@workspace:packages/esm-appointments-app":
-  version: 0.0.0-use.local
-  resolution: "@openmrs/esm-appointments-app@workspace:packages/esm-appointments-app"
-  dependencies:
-    "@carbon/react": ^1.12.0
-    formik: ^2.2.9
-    lodash-es: ^4.17.15
-    webpack: ^5.74.0
-    yup: ^0.32.11
-  peerDependencies:
-    "@openmrs/esm-framework": 4.x
-    react: 18.x
-    react-i18next: 11.x
-    react-router-dom: 6.x
-  languageName: unknown
-  linkType: soft
 
 "@openmrs/esm-breadcrumbs@npm:^4.0.3-pre.392":
   version: 4.0.3-pre.392

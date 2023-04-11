@@ -101,6 +101,11 @@ function setupOpenMRS() {
         online: true,
         offline: false,
       },
+      {
+        name: 'appointment-widget',
+        load: getAsyncLifecycle(() => import('./appointment-widget/appointment-widget.component'), options),
+        meta: {},
+      },
     ],
   };
 }

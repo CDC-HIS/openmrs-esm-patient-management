@@ -1,5 +1,6 @@
 import useSWR from 'swr';
 import { openmrsFetch, Visit } from '@openmrs/esm-framework';
+import dayjs from 'dayjs';
 
 export function usePastVisits(patientUuid: string) {
   const customRepresentation =
@@ -9,19 +10,23 @@ export function usePastVisits(patientUuid: string) {
     'display,groupMembers:(uuid,concept:(uuid,display),' +
     'value:(uuid,display)),value),encounterType:(uuid,display),' +
     'encounterProviders:(uuid,display,encounterRole:(uuid,display),' +
-    'provider:(uuid,person:(uuid,display)))),visitType:(uuid,name,display),startDatetime,patient';
+    'provider:(uuid,person:(uuid,display)))),visitType:(uuid,name,display),startDatetime,stopDatetime,patient';
 
-  const { data, error, isValidating } = useSWR<{ data: { results: Array<Visit> } }, Error>(
-    `/ws/rest/v1/visit?patient=${patientUuid}&v=${customRepresentation}`,
+  const apiUrl = `/ws/rest/v1/visit?patient=${patientUuid}&v=${customRepresentation}`;
+
+  const { data, error, isLoading, isValidating } = useSWR<{ data: { results: Array<Visit> } }, Error>(
+    patientUuid ? apiUrl : null,
     openmrsFetch,
   );
 
-  const previousVisit = data?.data?.results?.find((result) => result.stopDatetime !== null);
+  const previousVisit = data?.data?.results
+    ?.filter((result) => dayjs(result.startDatetime).isBefore(dayjs().startOf('day')))
+    ?.shift();
 
   return {
     visits: data ? previousVisit : null,
     isError: error,
-    isLoading: !data && !error,
+    isLoading,
     isValidating,
   };
 }

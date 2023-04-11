@@ -1,6 +1,9 @@
 import dayjs from 'dayjs';
+import isEmpty from 'lodash-es/isEmpty';
+import last from 'lodash-es/last';
 import useSWR from 'swr';
 import useSWRImmutable from 'swr/immutable';
+import { useTranslation } from 'react-i18next';
 import {
   FetchResponse,
   formatDate,
@@ -11,23 +14,21 @@ import {
   useConfig,
   Visit,
 } from '@openmrs/esm-framework';
-import last from 'lodash-es/last';
-import { MappedServiceQueueEntry, QueueServiceInfo } from '../types';
-import isEmpty from 'lodash-es/isEmpty';
-import { useTranslation } from 'react-i18next';
+import { Identifer, MappedServiceQueueEntry, QueueServiceInfo } from '../types';
+import { useQueueLocations } from '../patient-search/hooks/useQueueLocations';
 
 export type QueuePriority = 'Emergency' | 'Not Urgent' | 'Priority' | 'Urgent';
 export type MappedQueuePriority = Omit<QueuePriority, 'Urgent'>;
 export type QueueService = 'Clinical consultation' | 'Triage';
 export type QueueStatus = 'Finished Service' | 'In Service' | 'Waiting';
 
-interface VisitQueueEntry {
+export interface VisitQueueEntry {
   queueEntry: VisitQueueEntry;
   uuid: string;
   visit: Visit;
 }
 
-interface VisitQueueEntry {
+export interface VisitQueueEntry {
   display: string;
   endedAt: null;
   locationWaitingFor: string | null;
@@ -39,6 +40,7 @@ interface VisitQueueEntry {
       birthdate: string;
     };
     phoneNumber: string;
+    identifiers: Array<Identifer>;
   };
   priority: {
     display: QueuePriority;
@@ -54,6 +56,10 @@ interface VisitQueueEntry {
       display: QueueService;
     };
     uuid: string;
+    location: {
+      uuid: string;
+      name: string;
+    };
   };
   startedAt: string;
   status: {
@@ -62,6 +68,7 @@ interface VisitQueueEntry {
   };
   uuid: string;
   visit: Visit;
+  sortWeight: number;
 }
 
 export interface MappedVisitQueueEntry {
@@ -86,6 +93,10 @@ export interface MappedVisitQueueEntry {
   waitTime: string;
   queueUuid: string;
   queueEntryUuid: string;
+  queueLocation: string;
+  sortWeight: number;
+  visitQueueNumber: string;
+  identifiers: Array<Identifer>;
 }
 
 interface UseVisitQueueEntries {
@@ -94,6 +105,7 @@ interface UseVisitQueueEntries {
   isLoading: boolean;
   isError: Error;
   isValidating?: boolean;
+  mutate: () => void;
 }
 
 interface ObsData {
@@ -126,7 +138,11 @@ interface MappedEncounter extends Omit<Encounter, 'encounterType' | 'provider'> 
 
 export function useServices(location: string) {
   const apiUrl = `/ws/rest/v1/queue?location=${location}`;
-  const { data } = useSWRImmutable<{ data: { results: Array<QueueServiceInfo> } }, Error>(apiUrl, openmrsFetch);
+
+  const { data } = useSWRImmutable<{ data: { results: Array<QueueServiceInfo> } }, Error>(
+    location ? apiUrl : null,
+    openmrsFetch,
+  );
 
   return {
     services: data ? data?.data?.results : [],
@@ -140,11 +156,11 @@ export function useStatus() {
   } = config;
 
   const apiUrl = `/ws/rest/v1/concept/${statusConceptSetUuid}`;
-  const { data, error } = useSWRImmutable<FetchResponse>(apiUrl, openmrsFetch);
+  const { data, error, isLoading } = useSWRImmutable<FetchResponse>(apiUrl, openmrsFetch);
 
   return {
     statuses: data ? data?.data?.setMembers : [],
-    isLoading: !data && !error,
+    isLoading,
   };
 }
 
@@ -155,17 +171,26 @@ export function usePriority() {
   } = config;
 
   const apiUrl = `/ws/rest/v1/concept/${priorityConceptSetUuid}`;
-  const { data } = useSWRImmutable<FetchResponse>(apiUrl, openmrsFetch);
+  const { data, error, isLoading } = useSWRImmutable<FetchResponse>(apiUrl, openmrsFetch);
 
   return {
     priorities: data ? data?.data?.setMembers : [],
+    isLoading,
+    isError: error,
   };
 }
 
-export function useVisitQueueEntries(currServiceName: string): UseVisitQueueEntries {
-  const apiUrl = `/ws/rest/v1/visit-queue-entry?v=full`;
+export function useVisitQueueEntries(currServiceName: string, locationUuid: string): UseVisitQueueEntries {
+  const { queueLocations } = useQueueLocations();
+  const queueLocationUuid = locationUuid ? locationUuid : queueLocations[0]?.id;
+  const config = useConfig();
+  const {
+    concepts: { visitQueueNumberAttributeUuid },
+  } = config;
+
+  const apiUrl = `/ws/rest/v1/visit-queue-entry?location=${queueLocationUuid}&v=full`;
   const { t } = useTranslation();
-  const { data, error, isValidating } = useSWR<{ data: { results: Array<VisitQueueEntry> } }, Error>(
+  const { data, error, isLoading, isValidating, mutate } = useSWR<{ data: { results: Array<VisitQueueEntry> } }, Error>(
     apiUrl,
     openmrsFetch,
   );
@@ -204,31 +229,40 @@ export function useVisitQueueEntries(currServiceName: string): UseVisitQueueEntr
     waitTime: visitQueueEntry.queueEntry.startedAt
       ? `${dayjs().diff(dayjs(visitQueueEntry.queueEntry.startedAt), 'minutes')}`
       : '--',
-    visitStartDateTime: visitQueueEntry.visit?.visitStartDateTime,
+    visitStartDateTime: visitQueueEntry.queueEntry.startedAt,
     visitType: visitQueueEntry.visit?.visitType?.display,
     visitLocation: visitQueueEntry.visit?.location?.uuid,
+    queueLocation: visitQueueEntry.queueEntry?.queue?.location?.uuid,
     visitTypeUuid: visitQueueEntry.visit?.visitType?.uuid,
     visitUuid: visitQueueEntry.visit?.uuid,
     queueUuid: visitQueueEntry.queueEntry.queue.uuid,
     queueEntryUuid: visitQueueEntry.queueEntry.uuid,
+    sortWeight: visitQueueEntry.queueEntry.sortWeight,
+    visitQueueNumber: visitQueueEntry?.visit?.attributes?.find(
+      (e) => e.attributeType.uuid === visitQueueNumberAttributeUuid,
+    )?.value,
+    identifiers: visitQueueEntry.queueEntry.patient?.identifiers,
   });
 
   let mappedVisitQueueEntries;
 
   if (!currServiceName || currServiceName == t('all', 'All')) {
-    mappedVisitQueueEntries = data?.data?.results?.map(mapVisitQueueEntryProperties);
+    mappedVisitQueueEntries = data?.data?.results
+      ?.map(mapVisitQueueEntryProperties)
+      .filter(({ visitStartDateTime }) => dayjs(visitStartDateTime).isToday());
   } else {
     mappedVisitQueueEntries = data?.data?.results
       ?.map(mapVisitQueueEntryProperties)
-      .filter((data) => data.service === currServiceName);
+      .filter((data) => data.service === currServiceName && dayjs(data.visitStartDateTime).isToday());
   }
 
   return {
-    visitQueueEntries: mappedVisitQueueEntries ? mappedVisitQueueEntries : null,
+    visitQueueEntries: mappedVisitQueueEntries ? mappedVisitQueueEntries : [],
     visitQueueEntriesCount: mappedVisitQueueEntries ? mappedVisitQueueEntries.length : 0,
-    isLoading: !data && !error,
+    isLoading,
     isError: error,
     isValidating,
+    mutate,
   };
 }
 
@@ -246,11 +280,12 @@ export async function updateQueueEntry(
   priority: string,
   status: string,
   endedAt: Date,
-  abortController: AbortController,
+  sortWeight: number,
 ) {
+  const abortController = new AbortController();
   const queueServiceUuid = isEmpty(newQueueUuid) ? previousQueueUuid : newQueueUuid;
 
-  await Promise.all([endPatientStatus(previousQueueUuid, abortController, queueEntryUuid, endedAt)]);
+  await Promise.all([endPatientStatus(previousQueueUuid, queueEntryUuid, endedAt)]);
 
   return openmrsFetch(`/ws/rest/v1/visit-queue-entry`, {
     method: 'POST',
@@ -274,17 +309,14 @@ export async function updateQueueEntry(
           uuid: patientUuid,
         },
         startedAt: toDateObjectStrict(toOmrsIsoString(new Date())),
+        sortWeight: sortWeight,
       },
     },
   });
 }
 
-export async function endPatientStatus(
-  previousQueueUuid: string,
-  abortController: AbortController,
-  queueEntryUuid: string,
-  endedAt: Date,
-) {
+export async function endPatientStatus(previousQueueUuid: string, queueEntryUuid: string, endedAt: Date) {
+  const abortController = new AbortController();
   await openmrsFetch(`/ws/rest/v1/queue/${previousQueueUuid}/entry/${queueEntryUuid}`, {
     method: 'POST',
     headers: {
@@ -297,10 +329,10 @@ export async function endPatientStatus(
   });
 }
 
-export function useServiceQueueEntries(service: string) {
-  const apiUrl = `/ws/rest/v1/visit-queue-entry?status=waiting&service=${service}&v=full`;
-  const { data, error, isValidating } = useSWR<{ data: { results: Array<VisitQueueEntry> } }, Error>(
-    apiUrl,
+export function useServiceQueueEntries(service: string, locationUuid: string) {
+  const apiUrl = `/ws/rest/v1/visit-queue-entry?status=waiting&service=${service}&location=${locationUuid}&v=full`;
+  const { data, error, isLoading, isValidating } = useSWR<{ data: { results: Array<VisitQueueEntry> } }, Error>(
+    service && locationUuid ? apiUrl : null,
     openmrsFetch,
   );
 
@@ -308,19 +340,83 @@ export function useServiceQueueEntries(service: string) {
     id: visitQueueEntry.queueEntry.uuid,
     name: visitQueueEntry.queueEntry.display,
     age: visitQueueEntry.queueEntry.patient ? visitQueueEntry?.queueEntry?.patient?.person?.age : '--',
-    returnDate: visitQueueEntry.visit?.visitStartDateTime,
+    returnDate: visitQueueEntry.queueEntry.startedAt,
     visitType: visitQueueEntry.visit?.visitType?.display,
     phoneNumber: visitQueueEntry.patient ? visitQueueEntry.patient?.phoneNumber : '--',
     gender: visitQueueEntry.queueEntry.patient ? visitQueueEntry?.queueEntry?.patient?.person?.gender : '--',
     patientUuid: visitQueueEntry.queueEntry ? visitQueueEntry?.queueEntry.uuid : '--',
   });
 
-  const mappedServiceQueueEntries = data?.data?.results?.map(mapServiceQueueEntryProperties);
+  const mappedServiceQueueEntries = data?.data?.results
+    ?.map(mapServiceQueueEntryProperties)
+    .filter(({ returnDate }) => dayjs(returnDate).isToday());
 
   return {
-    serviceQueueEntries: mappedServiceQueueEntries ? mappedServiceQueueEntries : null,
-    isLoading: !data && !error,
+    serviceQueueEntries: mappedServiceQueueEntries ? mappedServiceQueueEntries : [],
+    isLoading,
     isError: error,
     isValidating,
   };
+}
+
+export async function addQueueEntry(
+  visitUuid: string,
+  queueUuid: string,
+  patientUuid: string,
+  priority: string,
+  status: string,
+  sortWeight: number,
+  locationUuid: string,
+  visitQueueNumberAttributeUuid: string,
+) {
+  const abortController = new AbortController();
+
+  await Promise.all([generateVisitQueueNumber(locationUuid, visitUuid, queueUuid, visitQueueNumberAttributeUuid)]);
+
+  return openmrsFetch(`/ws/rest/v1/visit-queue-entry`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    signal: abortController.signal,
+    body: {
+      visit: { uuid: visitUuid },
+      queueEntry: {
+        status: {
+          uuid: status,
+        },
+        priority: {
+          uuid: priority,
+        },
+        queue: {
+          uuid: queueUuid,
+        },
+        patient: {
+          uuid: patientUuid,
+        },
+        startedAt: toDateObjectStrict(toOmrsIsoString(new Date())),
+        sortWeight: sortWeight,
+      },
+    },
+  });
+}
+
+export async function generateVisitQueueNumber(
+  location: string,
+  visitUuid: string,
+  queueUuid: string,
+  visitQueueNumberAttributeUuid: string,
+) {
+  const abortController = new AbortController();
+
+  await openmrsFetch(
+    `/ws/rest/v1/queue-entry-number?location=${location}&queue=${queueUuid}&visit=${visitUuid}&visitAttributeType=${visitQueueNumberAttributeUuid}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: abortController.signal,
+    },
+  );
 }

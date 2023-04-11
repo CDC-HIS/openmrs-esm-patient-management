@@ -3,11 +3,13 @@ import {
   AddPatientData,
   CohortResponse,
   NewCohortData,
+  NewCohortDataPayload,
   OpenmrsCohort,
   OpenmrsCohortMember,
   OpenmrsCohortRef,
   PatientListFilter,
   PatientListMember,
+  PatientListType,
   PatientListUpdate,
 } from './types';
 
@@ -37,8 +39,13 @@ async function deleteData(url: string, data = {}, ac = new AbortController()) {
   return response.data;
 }
 
-export async function getAllPatientLists(filter: PatientListFilter = {}, ac = new AbortController()) {
-  const custom = 'custom:(uuid,name,description,display,size,attributes)';
+export async function getAllPatientLists(
+  filter: PatientListFilter = {},
+  myListCohortTypeUUID,
+  systemListCohortTypeUUID,
+  ac = new AbortController(),
+) {
+  const custom = 'custom:(uuid,name,description,display,size,attributes,cohortType)';
   const query: Array<[string, string]> = [['v', custom]];
 
   if (filter.name !== undefined && filter.name !== '') {
@@ -50,18 +57,11 @@ export async function getAllPatientLists(filter: PatientListFilter = {}, ac = ne
     query.push(['attribute', `starred:${filter.isStarred}`]);
   }
 
-  //
-  // ⚠️ TODO:
-  // I commented the following out since it leads to crashes on dev3 (500 internal server error).
-  // In particular, the backend doesn't like us querying for the attributes at the moment.
-  // This must be fixed/updated when the patient list feature gets continued/restored eventually.
-  //
-
-  // if (filter.type !== undefined) {
-  //   const type =
-  //     filter.type === PatientListType.SYSTEM ? '"Patient List Type":"System"' : '"Patient List Type":"My lists"';
-  //   query.push(['attributes', type]);
-  // }
+  if (filter.type === PatientListType.USER) {
+    query.push(['cohortType', myListCohortTypeUUID]);
+  } else if (filter.type === PatientListType.SYSTEM) {
+    query.push(['cohortType', systemListCohortTypeUUID]);
+  }
 
   const params = query.map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
   const {
@@ -78,7 +78,7 @@ export async function getAllPatientLists(filter: PatientListFilter = {}, ac = ne
     id: cohort.uuid,
     display: cohort.name,
     description: cohort.description,
-    type: cohort.attributes.find((att) => att?.cohortAttributeType?.name === 'Patient List Type')?.value,
+    type: cohort.cohortType?.display,
     size: cohort.size,
     isStarred: false, // TODO
   }));
@@ -136,7 +136,7 @@ export async function addPatientToList(data: AddPatientData, ac = new AbortContr
   return postData(`${cohortUrl}/cohortmember`, data, ac);
 }
 
-export async function createPatientList(cohort: NewCohortData, ac = new AbortController()) {
+export async function createPatientList(cohort: NewCohortDataPayload, ac = new AbortController()) {
   return postData(
     `${cohortUrl}/cohort/`,
     {
@@ -161,4 +161,18 @@ export async function deletePatientList(cohortUuid: string, ac = new AbortContro
     },
     ac,
   );
+}
+
+export async function getPatientListName(patientListUuid: string) {
+  const abortController = new AbortController();
+
+  try {
+    const url = `${cohortUrl}/cohort/${patientListUuid}?`;
+    const { data } = await openmrsFetch<OpenmrsCohort>(url, {
+      signal: abortController.signal,
+    });
+    return data?.name;
+  } catch (error) {
+    console.error('Error resolving patient list name: ', error);
+  }
 }

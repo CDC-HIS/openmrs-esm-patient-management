@@ -6,8 +6,10 @@ import uniqBy from 'lodash-es/uniqBy';
 const customRepresentation = `custom:(uuid,display,program,dateEnrolled,dateCompleted,location:(uuid,display))`;
 
 export const useActivePatientEnrollment = (patientUuid: string) => {
-  const { data, error } = useSWR<{ data: { results: Array<PatientProgram> } }>(
-    `/ws/rest/v1/programenrollment?patient=${patientUuid}&v=${customRepresentation}`,
+  const apiUrl = `/ws/rest/v1/programenrollment?patient=${patientUuid}&v=${customRepresentation}`;
+
+  const { data, error, isLoading } = useSWR<{ data: { results: Array<PatientProgram> } }>(
+    patientUuid ? apiUrl : null,
     openmrsFetch,
   );
 
@@ -22,6 +24,6 @@ export const useActivePatientEnrollment = (patientUuid: string) => {
   return {
     activePatientEnrollment: uniqBy(activePatientEnrollment, (program) => program?.program?.uuid),
     error,
-    isLoading: !data && !error,
+    isLoading,
   };
 };

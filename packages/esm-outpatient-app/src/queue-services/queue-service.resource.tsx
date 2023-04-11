@@ -9,21 +9,17 @@ export function useServiceConcepts() {
   } = config;
 
   const apiUrl = `/ws/rest/v1/concept/${serviceConceptSetUuid}`;
-  const { data, error } = useSWRImmutable<FetchResponse>(apiUrl, openmrsFetch);
+  const { data, error, isLoading } = useSWRImmutable<FetchResponse>(apiUrl, openmrsFetch);
 
   return {
     queueConcepts: data ? data?.data?.setMembers : [],
-    isLoading: !data && !error,
+    isLoading,
   };
 }
 
-export function saveQueue(
-  queueName: string,
-  queueConcept: string,
-  queueDescription: string,
-  queueLocation: string,
-  abortController: AbortController,
-) {
+export function saveQueue(queueName: string, queueConcept: string, queueDescription: string, queueLocation: string) {
+  const abortController = new AbortController();
+
   return openmrsFetch(`/ws/rest/v1/queue`, {
     method: 'POST',
     headers: {

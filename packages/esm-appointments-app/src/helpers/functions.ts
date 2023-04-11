@@ -43,13 +43,13 @@ function formatAMPM(date) {
   return strTime;
 }
 
-export const getTodaysAppointment = (appointment: Appointment, t?: Function) => {
-  let formattedAppointment = {
+export const mapAppointmentProperties = (appointment: Appointment, t?: Function) => {
+  return {
     id: appointment?.uuid,
     name: appointment.patient?.name,
     age: appointment.patient?.birthDate,
     gender: appointment.patient?.gender,
-    phoneNumber: appointment.patient?.contact,
+    phoneNumber: appointment.patient?.phoneNumber,
     dob: formatDate(parseDate(appointment.patient?.birthDate), { mode: 'wide' }),
     patientUuid: appointment.patient?.uuid,
     dateTime: formatAMPM(parseDate(appointment.startDateTime)),
@@ -69,7 +69,6 @@ export const getTodaysAppointment = (appointment: Appointment, t?: Function) => 
       : getAppointmentDuration(appointment.startDateTime, appointment.endDateTime),
     recurring: appointment.recurring,
   };
-  return formattedAppointment;
 };
 
 export const getAppointment = (appointment: Appointment) => {
@@ -78,7 +77,7 @@ export const getAppointment = (appointment: Appointment) => {
     name: appointment.patient?.name,
     age: appointment.patient?.birthDate,
     gender: appointment.patient?.gender,
-    phoneNumber: appointment.patient?.contact,
+    phoneNumber: appointment.patient?.phoneNumber,
     dob: formatDate(parseDate(appointment.patient?.birthDate), { mode: 'wide' }),
     patientUuid: appointment.patient?.uuid,
     dateTime: appointment.startDateTime,
@@ -122,4 +121,70 @@ export const monthDays = (currentDate: Dayjs) => {
     days.push(currentDate.date(i).month(nextMonth.month()));
   }
   return days;
+};
+
+export const getGender = (gender, t) => {
+  switch (gender) {
+    case 'M':
+      return t('male', 'Male');
+    case 'F':
+      return t('female', 'Female');
+    case 'O':
+      return t('other', 'Other');
+    case 'U':
+      return t('unknown', 'Unknown');
+    default:
+      return gender;
+  }
+};
+export const weekDays = (currentDate: Dayjs) => {
+  const dateTime: Dayjs[] = [];
+
+  for (let hour = 0; hour < 1; hour++) {
+    for (let day = 0; day < 8; day++) {
+      dateTime.push(
+        dayjs(currentDate)
+          .day(day === 0 ? 0 : day - 1)
+          .hour(hour),
+      );
+    }
+  }
+  return dateTime;
+};
+export const weekAllDays = (currentDate: Dayjs) => {
+  const dateTime: Dayjs[] = [];
+
+  for (let hour = 0; hour < 24; hour++) {
+    for (let day = 0; day < 8; day++) {
+      dateTime.push(
+        dayjs(currentDate)
+          .day(day === 0 ? 0 : day - 1)
+          .hour(hour),
+      );
+    }
+  }
+  return dateTime;
+};
+export const dailyHours = (currentDate: Dayjs) => {
+  const dateTime: Dayjs[] = [];
+
+  for (let hour = 0; hour < 24; hour++) {
+    dateTime.push(dayjs(currentDate).hour(hour));
+  }
+  return dateTime;
+};
+
+export const dailyView = (currentDate: Dayjs) => {
+  const dateTime: Dayjs[] = [];
+
+  for (let hour = 0; hour < 1; hour++) {
+    for (let day = 0; day < 1; day++) {
+      dateTime.push(
+        dayjs(currentDate)
+          .day(day === 0 ? 0 : day - 1)
+          .hour(hour),
+      );
+    }
+  }
+  return dateTime;
 };

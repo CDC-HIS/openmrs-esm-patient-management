@@ -32,7 +32,7 @@ jest.mock('../hooks/useClinicalMetrics', () => {
 
 describe('Appointment metrics', () => {
   it('renders metrics from appointment list', () => {
-    mockedOpenmrsFetch.mockResolvedValue({ data: mockAppointmentMetrics });
+    mockedOpenmrsFetch.mockResolvedValue({ data: [] });
 
     renderAppointmentMetrics();
 
@@ -46,5 +46,5 @@ describe('Appointment metrics', () => {
 });
 
 function renderAppointmentMetrics() {
-  render(<AppointmentsMetrics />);
+  render(<AppointmentsMetrics serviceUuid="uuid" />);
 }

@@ -12,23 +12,24 @@ interface AppointmentsReturnType {
 
 export const useDailyAppointments = (startDateTime: string, durationPeriod: DurationPeriod) => {
   const url = `/ws/rest/v1/appointment/all?forDate=${startDateTime}`;
-  const { data, error } = useSWR<{ data: Array<Appointment> }>(url, openmrsFetch);
+  const { data, error, isLoading } = useSWR<{ data: Array<Appointment> }>(startDateTime ? url : null, openmrsFetch);
 
   return {
     appointments: data?.data ?? [],
-    isLoading: !data && !error,
+    isLoading,
     error: error,
   };
 };
 
 export const useAppointmentsByDurationPeriod = (date: string, durationPeriod: DurationPeriod) => {
-  const ac = new AbortController();
+  const abortController = new AbortController();
   const appointmentsSearchUrl = `/ws/rest/v1/appointments/search`;
   const { startDate, endDate } = getStartAndEndDate(durationPeriod, date);
+
   const fetcher = () =>
     openmrsFetch(appointmentsSearchUrl, {
       method: 'POST',
-      signal: ac.signal,
+      signal: abortController.signal,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -37,9 +38,10 @@ export const useAppointmentsByDurationPeriod = (date: string, durationPeriod: Du
         endDate: endDate,
       },
     });
+
   const url = 'openmrs/ws/rest/v1/appointments/search';
-  const { data, error } = useSWR<{ data: Array<Appointment> }>(url, fetcher);
-  return { isLoading: !data && !error, appointments: data?.data ?? [], error };
+  const { data, error, isLoading } = useSWR<{ data: Array<Appointment> }>(url, fetcher);
+  return { isLoading, appointments: data?.data ?? [], error };
 };
 
 const getStartAndEndDate = (durationPeriod: DurationPeriod, date: string) => {

@@ -1,4 +1,8 @@
-import { getAsyncLifecycle, registerBreadcrumbs } from '@openmrs/esm-framework';
+import { defineConfigSchema, getAsyncLifecycle, getSyncLifecycle, registerBreadcrumbs } from '@openmrs/esm-framework';
+import { getPatientListName } from './api/api-remote';
+import { configSchema } from './config-schema';
+import { createDashboardLink } from './createDashboardLink';
+import { dashboardMeta } from './dashboard.meta';
 import { setupOffline } from './offline';
 
 declare var __VERSION__: string;
@@ -22,20 +26,25 @@ const options = {
 };
 
 function setupOpenMRS() {
-  const route = `patient-list`;
-  const spaBasePath = `${window.spaBase}/${route}`;
+  const patientListsBasePath = `${window.spaBase}/home/patient-lists`;
+
+  async function getListName(patientListUuid: string): Promise<string> {
+    return (await getPatientListName(patientListUuid)) ?? '--';
+  }
+
   setupOffline();
+  defineConfigSchema(moduleName, configSchema);
 
   registerBreadcrumbs([
     {
-      path: spaBasePath,
       title: 'Patient Lists',
+      path: patientListsBasePath,
       parent: `${window.spaBase}/home`,
     },
     {
-      path: `${spaBasePath}/:uuid?`,
-      title: ([x]) => `${x}`,
-      parent: spaBasePath,
+      title: ([patientListUuid]) => getListName(patientListUuid),
+      path: `${patientListsBasePath}/:patientListUuid?`,
+      parent: patientListsBasePath,
     },
   ]);
 
@@ -43,16 +52,24 @@ function setupOpenMRS() {
     pages: [
       {
         load: getAsyncLifecycle(() => import('./root.component'), options),
-        route,
+        route: 'patient-lists',
         online: { syncUserPropertiesChangesOnLoad: true },
         offline: { syncUserPropertiesChangesOnLoad: false },
       },
     ],
     extensions: [
       {
-        id: 'patient-list-link',
-        slot: 'app-menu-slot',
-        load: getAsyncLifecycle(() => import('./patient-list-link.component'), options),
+        id: 'patient-lists-dashboard-link',
+        slot: 'homepage-dashboard-slot',
+        load: getSyncLifecycle(createDashboardLink(dashboardMeta), options),
+        meta: dashboardMeta,
+        online: true,
+        offline: true,
+      },
+      {
+        id: 'patient-lists-dashboard',
+        slot: 'patient-lists-dashboard-slot',
+        load: getAsyncLifecycle(() => import('./root.component'), options),
         online: true,
         offline: true,
       },
@@ -66,7 +83,7 @@ function setupOpenMRS() {
       },
       {
         name: 'patient-list-action-menu',
-        slot: 'action-menu-items-slot',
+        slot: 'action-menu-non-chart-items-slot',
         load: getAsyncLifecycle(() => import('./patient-list-action-button.component'), {
           featureName: 'patient-list-action-menu-item',
           moduleName,

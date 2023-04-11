@@ -10,9 +10,10 @@ export interface EmptyStateProps {
   displayText: string;
   headerTitle: string;
   launchForm?(): void;
+  scheduleType: string;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ headerTitle, displayText, launchForm }) => {
+export const EmptyState: React.FC<EmptyStateProps> = ({ headerTitle, displayText, launchForm, scheduleType }) => {
   const { t } = useTranslation();
   const isTablet = useLayoutType() === 'tablet';
 
@@ -24,19 +25,21 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ headerTitle, displayText
         </div>
         <EmptyDataIllustration />
         <p className={styles.content}>
-          <Trans i18nKey="emptyStateText" values={{ displayText: displayText.toLowerCase() }}>
-            There are no {displayText.toLowerCase()} to display
+          <Trans i18nKey="emptyStateText" values={{ displayText: displayText }}>
+            There are no {displayText} to display
           </Trans>
         </p>
-        <p className={styles.action}>
-          {launchForm && (
-            <span>
-              <Button renderIcon={Add} kind="ghost" onClick={() => launchForm()}>
-                {t('createAppointment', 'Create appointment')}
-              </Button>
-            </span>
-          )}
-        </p>
+        {scheduleType === 'Scheduled' || scheduleType === 'CameEarly' ? (
+          <p className={styles.action}>
+            {launchForm && (
+              <span>
+                <Button renderIcon={Add} kind="ghost" onClick={() => launchForm()}>
+                  {t('createAppointment', 'Create appointment')}
+                </Button>
+              </span>
+            )}
+          </p>
+        ) : null}
       </Tile>
     </Layer>
   );

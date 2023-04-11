@@ -1,17 +1,18 @@
 import { OpenmrsResource } from '@openmrs/esm-api';
 
 export enum PatientListType {
-  SYSTEM,
-  USER,
+  STARRED = 'Starred',
+  SYSTEM = 'System list',
+  USER = 'My list',
+  ALL = 'All',
 }
 
 export interface PatientList {
   id: string;
   display: string;
   description: string;
-  type: PatientListType;
+  type: string;
   size: number;
-  isStarred: boolean;
   options?: Array<PatientListOption>;
 }
 
@@ -23,6 +24,7 @@ export interface PatientListFilter {
   isStarred?: boolean;
   name?: string;
   type?: PatientListType;
+  label?: string;
 }
 
 export interface PatientListOption {
@@ -77,13 +79,19 @@ export interface OpenmrsCohortMember {
 export interface CohortResponse<T> {
   results: Array<T>;
   error: any;
+  totalCount: number;
 }
 
 export interface NewCohortData {
   name: string;
   description: string;
-  location: string;
+}
+
+export interface NewCohortDataPayload {
+  name: string;
+  description: string;
   cohortType: string;
+  location: string;
 }
 
 export interface CohortType {

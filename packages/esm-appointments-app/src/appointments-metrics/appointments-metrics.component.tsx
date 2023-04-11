@@ -1,36 +1,32 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { InlineLoading } from '@carbon/react';
-import { ErrorState, formatDate, formatDatetime, parseDate } from '@openmrs/esm-framework';
+import { ErrorState, formatDate, parseDate } from '@openmrs/esm-framework';
 import { useClinicalMetrics, useAllAppointmentsByDate, useScheduledAppointment } from '../hooks/useClinicalMetrics';
 import MetricsCard from './metrics-card.component';
 import MetricsHeader from './metrics-header.component';
-import styles from './appointments-metrics.scss';
 import { useAppointmentDate } from '../helpers';
-import { useAppointments } from '../appointments-tabs/appointments-table.resource';
-import { useVisits } from '../hooks/useVisits';
+import { useAppointmentList } from '../hooks/useAppointmentList';
+import styles from './appointments-metrics.scss';
 
-const AppointmentsMetrics: React.FC = () => {
+const AppointmentsMetrics: React.FC<{ serviceUuid: string }> = ({ serviceUuid }) => {
   const { t } = useTranslation();
-  const { highestServiceLoad, isLoading, error } = useClinicalMetrics();
+  const { highestServiceLoad, error } = useClinicalMetrics();
   const { totalProviders, isLoading: loading } = useAllAppointmentsByDate();
-  const { totalScheduledAppointments } = useScheduledAppointment();
+  const { totalScheduledAppointments } = useScheduledAppointment(serviceUuid);
   const startDate = useAppointmentDate();
   const formattedStartDate = formatDate(parseDate(startDate), { mode: 'standard', time: false });
-  const { appointments } = useAppointments();
-  const { visits } = useVisits();
+  const { appointmentList: arrivedAppointments } = useAppointmentList('Honoured');
+  const { appointmentList: pendingAppointments } = useAppointmentList('Pending');
+  const filteredArrivedAppointment = serviceUuid
+    ? arrivedAppointments.filter((arrivedAppt) => arrivedAppt.serviceTypeUuid === serviceUuid)
+    : arrivedAppointments;
 
-  const hashTable = new Map([]);
-  visits?.map((visit) => hashTable.set(visit.patient.uuid, visit));
-  const pendingAppointments = appointments.filter((appointment) => !hashTable.get(appointment.patientUuid));
-  const arrivedAppointments = appointments.filter((appointment) => hashTable.get(appointment.patientUuid));
-
-  if (isLoading || loading) {
-    return <InlineLoading role="progressbar" description={t('loading', 'Loading...')} />;
-  }
+  const filteredPendingAppointment = serviceUuid
+    ? pendingAppointments.filter((arrivedAppt) => arrivedAppt.serviceTypeUuid === serviceUuid)
+    : pendingAppointments;
 
   if (error) {
-    <ErrorState headerTitle={t('errorAppoinmentMetric')} error={error} />;
+    <ErrorState headerTitle={t('appointmentMetricsLoadError')} error={error} />;
   }
 
   return (
@@ -42,21 +38,22 @@ const AppointmentsMetrics: React.FC = () => {
           value={totalScheduledAppointments}
           headerLabel={t('scheduledAppointments', 'Scheduled appointments')}
           view="patients"
-          count={{ pendingAppointments, arrivedAppointments }}
+          count={{ pendingAppointments: filteredPendingAppointment, arrivedAppointments: filteredArrivedAppointment }}
+          appointmentDate={startDate}
         />
         <MetricsCard
           label={
             highestServiceLoad?.count !== 0 ? t(highestServiceLoad?.serviceName) : t('serviceName', 'Service name')
           }
           value={highestServiceLoad?.count ?? '--'}
-          headerLabel={t('highestServiceVolume', 'High volume Service : {time}', { time: formattedStartDate })}
-          view="highVolume"
+          headerLabel={t('highestServiceVolume', 'High volume service: {time}', { time: formattedStartDate })}
+          view=""
         />
         <MetricsCard
           label={t('providers', 'Providers')}
           value={totalProviders}
-          headerLabel={t('providersAvailableToday', 'Providers available : {time}', { time: formattedStartDate })}
-          view="providers"
+          headerLabel={t('providersAvailableToday', 'Providers available: {time}', { time: formattedStartDate })}
+          view=""
         />
       </div>
     </>

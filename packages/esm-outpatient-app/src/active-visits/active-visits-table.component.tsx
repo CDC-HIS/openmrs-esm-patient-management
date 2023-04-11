@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback, MouseEvent, AnchorHTMLAttributes } from 'react';
+import React, { useMemo, useState, MouseEvent, AnchorHTMLAttributes, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -8,8 +8,6 @@ import {
   DefinitionTooltip,
   Dropdown,
   Layer,
-  OverflowMenu,
-  OverflowMenuItem,
   Tab,
   Table,
   TableBody,
@@ -30,39 +28,49 @@ import {
   TabList,
   Tag,
   Tile,
+  Pagination,
 } from '@carbon/react';
-import { Add, ArrowRight, Edit, Group, InProgress } from '@carbon/react/icons';
+import { Add, ArrowRight } from '@carbon/react/icons';
 import {
   useLayoutType,
   navigate,
-  showModal,
   interpolateUrl,
   isDesktop,
+  ExtensionSlot,
+  usePagination,
+  useConfig,
+  ConfigObject,
+  UserHasAccess,
   useSession,
-  useLocations,
+  showModal,
 } from '@openmrs/esm-framework';
 import {
   useVisitQueueEntries,
   useServices,
-  QueueService,
-  QueueStatus,
-  MappedVisitQueueEntry,
-  MappedQueuePriority,
   getOriginFromPathName,
+  MappedVisitQueueEntry,
 } from './active-visits-table.resource';
 import CurrentVisit from '../current-visit/current-visit-summary.component';
 import PatientSearch from '../patient-search/patient-search.component';
 import PastVisit from '../past-visit/past-visit.component';
 import styles from './active-visits-table.scss';
-import first from 'lodash-es/first';
 import { SearchTypes } from '../types';
 import ClearQueueEntries from '../clear-queue-entries-dialog/clear-queue-entries.component';
 import {
   updateSelectedServiceName,
   updateSelectedServiceUuid,
   useSelectedServiceName,
-  useSelectedServiceUuid,
+  useSelectedQueueLocationUuid,
+  useSelectedProviderRoomTimestamp,
+  useIsPermanentProviderQueueRoom,
 } from '../helpers/helpers';
+import { buildStatusString, formatWaitTime, getTagType, timeDiffInMinutes } from '../helpers/functions';
+import EditMenu from '../queue-entry-table-components/edit-entry.component';
+import ActionsMenu from '../queue-entry-table-components/actions-menu.component';
+import StatusIcon from '../queue-entry-table-components/status-icon.component';
+import TransitionMenu from '../queue-entry-table-components/transition-entry.component';
+import { useProvidersQueueRoom } from '../add-provider-queue-room/add-provider-queue-room.resource';
+import OpenChartMenu from '../queue-entry-table-components/open-chart.component';
 
 type FilterProps = {
   rowIds: Array<string>;
@@ -77,13 +85,18 @@ interface NameLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   from: string;
 }
 
+interface PaginationData {
+  goTo: (page: number) => void;
+  results: Array<MappedVisitQueueEntry>;
+  currentPage: number;
+}
+
 const PatientNameLink: React.FC<NameLinkProps> = ({ from, to, children }) => {
   const handleNameClick = (event: MouseEvent, to: string) => {
     event.preventDefault();
     navigate({ to });
     localStorage.setItem('fromPage', from);
   };
-
   return (
     <a onClick={(e) => handleNameClick(e, to)} href={interpolateUrl(to)}>
       {children}
@@ -91,100 +104,40 @@ const PatientNameLink: React.FC<NameLinkProps> = ({ from, to, children }) => {
   );
 };
 
-function ActionsMenu({ queueEntry }: { queueEntry: MappedVisitQueueEntry }) {
-  const { t } = useTranslation();
-
-  const launchEndVisitModal = useCallback(() => {
-    const dispose = showModal('remove-queue-entry', {
-      closeModal: () => dispose(),
-      queueEntry,
-    });
-  }, [queueEntry]);
-
-  return (
-    <Layer>
-      <OverflowMenu ariaLabel="Actions menu" selectorPrimaryFocus={'#editPatientDetails'} size="sm" flipped>
-        <OverflowMenuItem
-          className={styles.menuItem}
-          id="#editPatientDetails"
-          itemText={t('editPatientDetails', 'Edit patient details')}
-          onClick={() =>
-            navigate({
-              to: `\${openmrsSpaBase}/patient/${queueEntry.patientUuid}/edit`,
-            })
-          }>
-          {t('editPatientDetails', 'Edit patient details')}
-        </OverflowMenuItem>
-        <OverflowMenuItem
-          className={styles.menuItem}
-          id="#endVisit"
-          onClick={launchEndVisitModal}
-          hasDivider
-          isDelete
-          itemText={t('endVisit', 'End visit')}>
-          {t('endVisit', 'End Visit')}
-        </OverflowMenuItem>
-      </OverflowMenu>
-    </Layer>
-  );
-}
-
-function EditMenu({ queueEntry }: { queueEntry: MappedVisitQueueEntry }) {
-  const { t } = useTranslation();
-  const launchEditPriorityModal = useCallback(() => {
-    const dispose = showModal('edit-queue-entry-status-modal', {
-      closeModal: () => dispose(),
-      queueEntry,
-    });
-  }, [queueEntry]);
-
-  return (
-    <Button
-      kind="ghost"
-      onClick={launchEditPriorityModal}
-      iconDescription={t('editQueueEntryStatusTooltip', 'Edit')}
-      className={styles.editStatusBtn}
-      hasIconOnly
-      renderIcon={(props) => <Edit size={16} {...props} />}
-    />
-  );
-}
-
-function StatusIcon({ status }) {
-  switch (status) {
-    case 'waiting':
-      return <InProgress size={16} />;
-    case 'in service':
-      return <Group size={16} />;
-    case 'finished service':
-      return <Group size={16} />;
-    default:
-      return null;
-  }
-}
-
 function ActiveVisitsTable() {
   const { t } = useTranslation();
-  const [userLocation, setUserLocation] = useState('');
-  const session = useSession();
-  const locations = useLocations();
-  const { services } = useServices(userLocation);
+  const currentQueueLocation = useSelectedQueueLocationUuid();
+  const { services } = useServices(currentQueueLocation);
   const currentServiceName = useSelectedServiceName();
-  const { visitQueueEntries, isLoading } = useVisitQueueEntries(currentServiceName);
+  const currentLocationUuid = useSelectedQueueLocationUuid();
+  const { visitQueueEntries, isLoading } = useVisitQueueEntries(currentServiceName, currentLocationUuid);
   const [showOverlay, setShowOverlay] = useState(false);
   const [view, setView] = useState('');
+  const [viewState, setViewState] = useState<{ selectedPatientUuid: string }>(null);
   const layout = useLayoutType();
+  const config = useConfig() as ConfigObject;
+  const useQueueTableTabs = config.showQueueTableTab;
+  const currentUserSession = useSession();
+  const providerUuid = currentUserSession?.currentProvider?.uuid;
+  const { providerRoom, isLoading: loading } = useProvidersQueueRoom(providerUuid);
+  const differenceInTime = timeDiffInMinutes(
+    new Date(),
+    new Date(localStorage.getItem('lastUpdatedQueueRoomTimestamp')),
+  );
 
+  const isPermanentProviderQueueRoom = useIsPermanentProviderQueueRoom();
   const currentPathName: string = window.location.pathname;
   const fromPage: string = getOriginFromPathName(currentPathName);
 
-  useEffect(() => {
-    if (!userLocation && session?.sessionLocation !== null) {
-      setUserLocation(session?.sessionLocation?.uuid);
-    } else if (!userLocation && locations) {
-      setUserLocation(first(locations)?.uuid);
-    }
-  }, [session, locations, userLocation]);
+  const pageSizes = [10, 20, 30, 40, 50];
+  const [currentPageSize, setPageSize] = useState(10);
+  const [overlayHeader, setOverlayTitle] = useState('');
+
+  const {
+    goTo,
+    results: paginatedQueueEntries,
+    currentPage,
+  }: PaginationData = usePagination(visitQueueEntries, currentPageSize);
 
   const tableHeaders = useMemo(
     () => [
@@ -195,16 +148,21 @@ function ActiveVisitsTable() {
       },
       {
         id: 1,
+        header: t('queueNumber', 'QueueNumber'),
+        key: 'queueNumber',
+      },
+      {
+        id: 2,
         header: t('priority', 'Priority'),
         key: 'priority',
       },
       {
-        id: 2,
+        id: 3,
         header: t('status', 'Status'),
         key: 'status',
       },
       {
-        id: 3,
+        id: 4,
         header: t('waitTime', 'Wait time'),
         key: 'waitTime',
       },
@@ -212,51 +170,13 @@ function ActiveVisitsTable() {
     [t],
   );
 
-  const getTagType = (priority: string) => {
-    switch (priority as MappedQueuePriority) {
-      case 'Emergency':
-        return 'red';
-      case 'Not Urgent':
-        return 'green';
-      default:
-        return 'gray';
-    }
-  };
-
-  const buildStatusString = (status: string, service: string) => {
-    if (!status || !service) {
-      return '';
-    }
-
-    if (status === 'waiting') {
-      return `${status} for ${service}`;
-    } else if (status === 'in service') {
-      return `Attending ${service}`;
-    } else if (status === 'finished service') {
-      return `Finished ${service}`;
-    }
-  };
-
-  const formatWaitTime = (waitTime: string) => {
-    const num = parseInt(waitTime);
-    const hours = num / 60;
-    const rhours = Math.floor(hours);
-    const minutes = (hours - rhours) * 60;
-    const rminutes = Math.round(minutes);
-    if (rhours > 0) {
-      return rhours + ' ' + `${t('hoursAnd', 'hours and ')}` + rminutes + ' ' + `${t('minutes', 'minutes')}`;
-    } else {
-      return rminutes + ' ' + `${t('minutes', 'minutes')}`;
-    }
-  };
-
   const handleServiceChange = ({ selectedItem }) => {
     updateSelectedServiceUuid(selectedItem.uuid);
     updateSelectedServiceName(selectedItem.display);
   };
 
   const tableRows = useMemo(() => {
-    return visitQueueEntries?.map((entry) => ({
+    return paginatedQueueEntries?.map((entry) => ({
       ...entry,
       name: {
         content: (
@@ -264,6 +184,9 @@ function ActiveVisitsTable() {
             {entry.name}
           </PatientNameLink>
         ),
+      },
+      queueNumber: {
+        content: <span className={styles.statusContainer}>{entry?.visitQueueNumber}</span>,
       },
       priority: {
         content: (
@@ -296,10 +219,10 @@ function ActiveVisitsTable() {
         ),
       },
       waitTime: {
-        content: <span className={styles.statusContainer}>{formatWaitTime(entry.waitTime)}</span>,
+        content: <span className={styles.statusContainer}>{formatWaitTime(entry.waitTime, t)}</span>,
       },
     }));
-  }, [visitQueueEntries]);
+  }, [paginatedQueueEntries]);
 
   const handleFilter = ({ rowIds, headers, cellsById, inputValue, getCellId }: FilterProps): Array<string> => {
     return rowIds.filter((rowId) =>
@@ -325,6 +248,19 @@ function ActiveVisitsTable() {
     );
   };
 
+  const launchAddProviderRoomModal = useCallback(() => {
+    const dispose = showModal('add-provider-to-room-modal', {
+      closeModal: () => dispose(),
+      providerUuid,
+    });
+  }, [providerUuid]);
+
+  useEffect(() => {
+    if (differenceInTime >= 1 && isPermanentProviderQueueRoom == 'false') {
+      launchAddProviderRoomModal();
+    }
+  }, []);
+
   if (isLoading) {
     return <DataTableSkeleton role="progressbar" />;
   }
@@ -332,23 +268,65 @@ function ActiveVisitsTable() {
   if (visitQueueEntries?.length) {
     return (
       <div className={styles.container}>
-        <div className={styles.headerBtnContainer}>
-          <Button
-            size="sm"
-            kind="ghost"
-            renderIcon={(props) => <ArrowRight size={16} {...props} />}
-            onClick={() => {
-              setShowOverlay(true);
-              setView(SearchTypes.QUEUE_SERVICE_FORM);
-            }}
-            iconDescription={t('addNewQueue', 'Add new queue')}>
-            {t('addNewService', 'Add new service')}
-          </Button>
-        </div>
-        <div className={styles.headerContainer}>
-          <span className={styles.heading}>{t('patientsCurrentlyInQueue', 'Patients currently in queue')}</span>
-          <div className={styles.headerButtons}></div>
-        </div>
+        {useQueueTableTabs === false ? (
+          <>
+            <div className={styles.headerBtnContainer}>
+              <UserHasAccess privilege="Manage Forms">
+                <Button
+                  size="sm"
+                  kind="ghost"
+                  renderIcon={(props) => <ArrowRight size={16} {...props} />}
+                  onClick={(selectedPatientUuid) => {
+                    setShowOverlay(true);
+                    setView(SearchTypes.QUEUE_SERVICE_FORM);
+                    setViewState({ selectedPatientUuid });
+                    setOverlayTitle(t('addNewQueueService', 'Add new queue service'));
+                  }}
+                  iconDescription={t('addNewQueue', 'Add new queue')}>
+                  {t('addNewService', 'Add new service')}
+                </Button>
+                <Button
+                  size="sm"
+                  kind="ghost"
+                  renderIcon={(props) => <ArrowRight size={16} {...props} />}
+                  onClick={(selectedPatientUuid) => {
+                    setShowOverlay(true);
+                    setView(SearchTypes.QUEUE_ROOM_FORM);
+                    setViewState({ selectedPatientUuid });
+                    setOverlayTitle(t('addNewQueueServiceRoom', 'Add new queue service room'));
+                  }}
+                  iconDescription={t('addNewQueueServiceRoom', 'Add new queue service room')}>
+                  {t('addNewServiceRoom', 'Add new service room')}
+                </Button>
+              </UserHasAccess>
+            </div>
+            <div className={styles.headerContainer}>
+              <div className={!isDesktop(layout) ? styles.tabletHeading : styles.desktopHeading}>
+                <h4>{t('patientsCurrentlyInQueue', 'Patients currently in queue')}</h4>
+              </div>
+              <div className={styles.headerButtons}>
+                <ExtensionSlot
+                  extensionSlotName="patient-search-button-slot"
+                  state={{
+                    buttonText: t('addPatientToQueue', 'Add patient to queue'),
+                    overlayHeader: t('addPatientToQueue', 'Add patient to queue'),
+                    buttonProps: {
+                      kind: 'secondary',
+                      renderIcon: (props) => <Add size={16} {...props} />,
+                      size: 'sm',
+                    },
+                    selectPatientAction: (selectedPatientUuid) => {
+                      setShowOverlay(true);
+                      setView(SearchTypes.SCHEDULED_VISITS);
+                      setViewState({ selectedPatientUuid });
+                      setOverlayTitle(t('addPatientWithAppointmentToQueue', 'Add patient with appointment to queue'));
+                    },
+                  }}
+                />
+              </div>
+            </div>
+          </>
+        ) : null}
         <DataTable
           data-floating-menu-container
           filterRows={handleFilter}
@@ -382,18 +360,6 @@ function ActiveVisitsTable() {
                       size="sm"
                     />
                   </Layer>
-                  <Button
-                    size="sm"
-                    kind="secondary"
-                    className={styles.addPatientToListBtn}
-                    renderIcon={(props) => <Add size={16} {...props} />}
-                    onClick={() => {
-                      setShowOverlay(true);
-                      setView('');
-                    }}
-                    iconDescription={t('addPatientToQueue', 'Add patient to queue')}>
-                    {t('addPatientToQueue', 'Add patient to queue')}
-                  </Button>
                   <ClearQueueEntries visitQueueEntries={visitQueueEntries} />
                 </TableToolbarContent>
               </TableToolbar>
@@ -416,10 +382,16 @@ function ActiveVisitsTable() {
                             <TableCell key={cell.id}>{cell.value?.content ?? cell.value}</TableCell>
                           ))}
                           <TableCell className="cds--table-column-menu">
-                            <EditMenu queueEntry={visitQueueEntries?.[index]} />
+                            <TransitionMenu queueEntry={visitQueueEntries?.[index]} closeModal={() => true} />
                           </TableCell>
                           <TableCell className="cds--table-column-menu">
-                            <ActionsMenu queueEntry={visitQueueEntries?.[index]} />
+                            <EditMenu queueEntry={visitQueueEntries?.[index]} closeModal={() => true} />
+                          </TableCell>
+                          <TableCell className="cds--table-column-menu">
+                            <OpenChartMenu patientUuid={visitQueueEntries?.[index]?.patientUuid} />
+                          </TableCell>
+                          <TableCell className="cds--table-column-menu">
+                            <ActionsMenu queueEntry={visitQueueEntries?.[index]} closeModal={() => true} />
                           </TableCell>
                         </TableExpandRow>
                         {row.isExpanded ? (
@@ -470,56 +442,132 @@ function ActiveVisitsTable() {
                   </Tile>
                 </div>
               ) : null}
+              <Pagination
+                forwardText="Next page"
+                backwardText="Previous page"
+                page={currentPage}
+                pageSize={currentPageSize}
+                pageSizes={pageSizes}
+                totalItems={visitQueueEntries?.length}
+                className={styles.pagination}
+                onChange={({ pageSize, page }) => {
+                  if (pageSize !== currentPageSize) {
+                    setPageSize(pageSize);
+                  }
+                  if (page !== currentPage) {
+                    goTo(page);
+                  }
+                }}
+              />
             </TableContainer>
           )}
         </DataTable>
-        {showOverlay && <PatientSearch view={view} closePanel={() => setShowOverlay(false)} />}
+        {showOverlay && (
+          <PatientSearch
+            view={view}
+            closePanel={() => setShowOverlay(false)}
+            viewState={{
+              selectedPatientUuid: viewState.selectedPatientUuid,
+            }}
+            headerTitle={overlayHeader}
+          />
+        )}
       </div>
     );
   }
 
   return (
     <div className={styles.container}>
-      <div className={styles.headerBtnContainer}>
-        <Button
-          size="sm"
-          kind="ghost"
-          renderIcon={(props) => <ArrowRight size={16} {...props} />}
-          onClick={() => {
-            setShowOverlay(true);
-            setView(SearchTypes.QUEUE_SERVICE_FORM);
-          }}
-          iconDescription={t('addNewQueue', 'Add new queue')}>
-          {t('addNewService', 'Add new service')}
-        </Button>
-      </div>
-      <div className={styles.headerContainer}>
-        <label className={styles.heading}>{t('patientsCurrentlyInQueue', 'Patients currently in queue')}</label>
-        <Button
-          iconDescription={t('addPatientToQueue', 'Add patient to queue')}
-          kind="secondary"
-          onClick={() => {
-            setShowOverlay(true);
-            setView(SearchTypes.BASIC);
-          }}
-          renderIcon={(props) => <Add size={16} {...props} />}
-          size="sm">
-          {t('addPatientToQueue', 'Add patient to queue')}
-        </Button>
-      </div>
+      {useQueueTableTabs === false ? (
+        <>
+          <div className={styles.headerBtnContainer}>
+            <UserHasAccess privilege="Manage Forms">
+              <Button
+                size="sm"
+                kind="ghost"
+                renderIcon={(props) => <ArrowRight size={16} {...props} />}
+                onClick={(selectedPatientUuid) => {
+                  setShowOverlay(true);
+                  setView(SearchTypes.QUEUE_SERVICE_FORM);
+                  setViewState({ selectedPatientUuid });
+                  setOverlayTitle(t('addNewQueueService', 'Add new queue service'));
+                }}
+                iconDescription={t('addNewQueueService', 'Add new queue service')}>
+                {t('addNewService', 'Add new service')}
+              </Button>
+              <Button
+                size="sm"
+                kind="ghost"
+                renderIcon={(props) => <ArrowRight size={16} {...props} />}
+                onClick={(selectedPatientUuid) => {
+                  setShowOverlay(true);
+                  setView(SearchTypes.QUEUE_ROOM_FORM);
+                  setViewState({ selectedPatientUuid });
+                  setOverlayTitle(t('addNewQueueServiceRoom', 'Add new queue service room'));
+                }}
+                iconDescription={t('addNewQueueServiceRoom', 'Add new queue service room')}>
+                {t('addNewQueueRoom', 'Add new queue room')}
+              </Button>
+            </UserHasAccess>
+          </div>
+          <div className={styles.headerContainer}>
+            <div className={!isDesktop(layout) ? styles.tabletHeading : styles.desktopHeading}>
+              <h4>{t('patientsCurrentlyInQueue', 'Patients currently in queue')}</h4>
+            </div>
+            <div className={styles.headerButtons}>
+              <ExtensionSlot
+                extensionSlotName="patient-search-button-slot"
+                state={{
+                  buttonText: t('addPatientToQueue', 'Add patient to queue'),
+                  overlayHeader: t('addPatientToQueue', 'Add patient to queue'),
+                  buttonProps: {
+                    kind: 'secondary',
+                    renderIcon: (props) => <Add size={16} {...props} />,
+                    size: 'sm',
+                  },
+                  selectPatientAction: (selectedPatientUuid) => {
+                    setShowOverlay(true);
+                    setView(SearchTypes.SCHEDULED_VISITS);
+                    setViewState({ selectedPatientUuid });
+                    setOverlayTitle(t('addPatientWithAppointmentToQueue', 'Add patient with appointment to queue'));
+                  },
+                }}
+              />
+            </div>
+          </div>
+        </>
+      ) : null}
       <div className={styles.tileContainer}>
         <Tile className={styles.tile}>
           <p className={styles.content}>{t('noPatientsToDisplay', 'No patients to display')}</p>
-          <Button
-            kind="ghost"
-            size="sm"
-            renderIcon={(props) => <Add size={16} {...props} />}
-            onClick={() => setShowOverlay(true)}>
-            {t('addPatientToQueue', 'Add patient to queue')}
-          </Button>
+          <ExtensionSlot
+            extensionSlotName="patient-search-button-slot"
+            state={{
+              buttonText: t('addPatientToQueue', 'Add patient to queue'),
+              overlayHeader: t('addPatientToQueue', 'Add patient to queue'),
+              buttonProps: {
+                kind: 'ghost',
+                renderIcon: (props) => <Add size={16} {...props} />,
+                size: 'sm',
+              },
+              selectPatientAction: (selectedPatientUuid) => {
+                setShowOverlay(true);
+                setView(SearchTypes.SCHEDULED_VISITS);
+                setViewState({ selectedPatientUuid });
+                setOverlayTitle(t('addPatientWithAppointmentToQueue', 'Add patient with appointment to queue'));
+              },
+            }}
+          />
         </Tile>
       </div>
-      {showOverlay && <PatientSearch view={view} closePanel={() => setShowOverlay(false)} />}
+      {showOverlay && (
+        <PatientSearch
+          view={view}
+          closePanel={() => setShowOverlay(false)}
+          viewState={viewState}
+          headerTitle={overlayHeader}
+        />
+      )}
     </div>
   );
 }

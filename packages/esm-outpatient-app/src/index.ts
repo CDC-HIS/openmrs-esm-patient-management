@@ -1,7 +1,7 @@
 import { defineConfigSchema, getAsyncLifecycle, getSyncLifecycle, registerBreadcrumbs } from '@openmrs/esm-framework';
 import { configSchema } from './config-schema';
 import { createDashboardLink } from './createDashboardLink';
-import { homeDashboardMeta } from './dashboard.meta';
+import { dashboardMeta } from './dashboard.meta';
 
 declare var __VERSION__: string;
 // __VERSION__ is replaced by Webpack with the version from package.json
@@ -21,44 +21,18 @@ function setupOpenMRS() {
     moduleName,
   };
 
-  registerBreadcrumbs([
-    {
-      path: `${window.spaBase}/appointments-list/:value?`,
-      title: ([x]) => `Patient Lists / ${x}`,
-      parent: `${window.spaBase}`,
-    },
-    {
-      path: `${window.spaBase}/queue-list/:value?`,
-      title: ([x]) => `Patient Lists / ${x}`,
-      parent: `${window.spaBase}`,
-    },
-  ]);
+  registerBreadcrumbs([]);
 
   defineConfigSchema(moduleName, configSchema);
 
   return {
     pages: [
       {
-        route: 'outpatient',
-        load: getAsyncLifecycle(() => import('./root.component'), options),
-        online: true,
-        offline: true,
-      },
-      {
         load: getAsyncLifecycle(
           () => import('./queue-patient-linelists/scheduled-appointments-table.component'),
           options,
         ),
         route: /^appointments-list/,
-        online: true,
-        offline: true,
-      },
-      {
-        load: getAsyncLifecycle(
-          () => import('./queue-patient-linelists/checkedin-appointments-table.component'),
-          options,
-        ),
-        route: /^checkedin-appointments-list/,
         online: true,
         offline: true,
       },
@@ -71,13 +45,6 @@ function setupOpenMRS() {
     ],
     extensions: [
       {
-        id: 'outpatient-link',
-        slot: 'app-menu-slot',
-        load: getAsyncLifecycle(() => import('./outpatient-link'), options),
-        online: true,
-        offline: false,
-      },
-      {
         id: 'outpatient-side-nav-ext',
         slot: 'outpatient-sidebar-slot',
         load: getAsyncLifecycle(() => import('./side-menu/side-menu.component'), options),
@@ -85,16 +52,16 @@ function setupOpenMRS() {
         offline: true,
       },
       {
-        id: 'home-db-link',
-        slot: 'outpatient-dashboard-slot',
-        load: getSyncLifecycle(createDashboardLink(homeDashboardMeta), options),
-        meta: homeDashboardMeta,
+        id: 'service-queues-dashboard-link',
+        slot: 'homepage-dashboard-slot',
+        load: getSyncLifecycle(createDashboardLink(dashboardMeta), options),
+        meta: dashboardMeta,
         online: true,
         offline: true,
       },
       {
         id: 'home-dashboard',
-        slot: 'home-dashboard-slot',
+        slot: 'service-queues-dashboard-slot',
         load: getAsyncLifecycle(() => import('./home.component'), options),
         online: true,
         offline: true,
@@ -136,11 +103,38 @@ function setupOpenMRS() {
         }),
       },
       {
-        id: 'service-queue-entries-table',
-        load: getAsyncLifecycle(() => import('./active-visits/active-visits-table.component'), {
-          featureName: 'view list of patients in queue',
+        id: 'add-visit-to-queue-modal',
+        load: getAsyncLifecycle(() => import('./add-patient-toqueue/add-patient-toqueue-dialog.component'), {
+          featureName: 'add visit to queue',
           moduleName,
         }),
+      },
+      {
+        id: 'transition-queue-entry-status-modal',
+        load: getAsyncLifecycle(() => import('./transition-queue-entry/transition-queue-entry-dialog.component'), {
+          featureName: 'transition queue status',
+          moduleName,
+        }),
+      },
+      {
+        id: 'previous-visit-summary-widget',
+        slot: 'previous-visit-summary-slot',
+        load: getAsyncLifecycle(() => import('./past-visit/past-visit.component'), options),
+      },
+      {
+        id: 'add-provider-to-room-modal',
+        load: getAsyncLifecycle(() => import('./add-provider-queue-room/add-provider-queue-room.component'), {
+          featureName: 'add provider queue room',
+          moduleName,
+        }),
+      },
+      {
+        id: 'add-queue-entry-widget',
+        slot: 'add-queue-entry-slot',
+        load: getAsyncLifecycle(
+          () => import('./patient-search/visit-form-queue-fields/visit-form-queue-fields.component'),
+          options,
+        ),
       },
     ],
   };

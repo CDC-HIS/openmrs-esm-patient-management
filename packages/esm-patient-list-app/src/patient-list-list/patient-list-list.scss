@@ -2,17 +2,8 @@
 @use '@carbon/styles/scss/type';
 @import '../style.scss';
 
-title {
-  width: 6.938rem;
-  height: 1.75rem;
-  margin: 0.438rem 22.875rem 0.813rem 0;
-  font-family: IBMPlexSans;
-  font-size: 1.25rem;
-  font-weight: normal;
-  font-stretch: normal;
-  font-style: normal;
-  line-height: 1.4;
-  letter-spacing: normal;
+.container {
+  margin: 1rem 0;
 }
 
 .link {
@@ -35,10 +26,34 @@ title {
 }
 
 .patientListHeader {
+  @include type.type-style('body-compact-02');
+  color: $text-02;
+  height: spacing.$spacing-12;
+  background-color: $ui-02;
   display: flex;
   justify-content: space-between;
+}
+
+.leftJustifiedItems {
+  display: flex;
+  flex-direction: row;
   align-items: center;
-  margin-left: spacing.$spacing-05;
+}
+
+.rightJustifiedItems {
+  @include type.type-style('body-compact-02');
+  color: $text-02;
+  padding-top: 1rem;
+}
+
+.pageName {
+  @include type.type-style('heading-04');
+}
+
+.pageLabels {
+  p:first-of-type {
+    margin-bottom: 0.25rem;
+  }
 }
 
 .newListButton {
@@ -49,7 +64,23 @@ title {
 
 .tabs {
   grid-column: 'span 2';
+}
+
+.tablist {
   padding: 0 spacing.$spacing-05;
+}
+
+.tab {
+  min-width: 8.875rem;
+
+  &:active,
+  &:focus {
+    outline: 2px solid var(--brand-03) !important;
+  }
+
+  &[aria-selected='true'] {
+    box-shadow: inset 0 2px 0 0 var(--brand-03) !important;
+  }
 }
 
 .hiddenTabsContent,

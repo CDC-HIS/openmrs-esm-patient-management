@@ -3744,23 +3744,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openmrs/esm-appointments-app@workspace:packages/esm-appointments-app":
-  version: 0.0.0-use.local
-  resolution: "@openmrs/esm-appointments-app@workspace:packages/esm-appointments-app"
-  dependencies:
-    "@carbon/react": ^1.12.0
-    formik: ^2.2.9
-    lodash-es: ^4.17.15
-    webpack: ^5.74.0
-    yup: ^0.32.11
-  peerDependencies:
-    "@openmrs/esm-framework": 4.x
-    react: 18.x
-    react-i18next: 11.x
-    react-router-dom: 6.x
-  languageName: unknown
-  linkType: soft
-
 "@openmrs/esm-breadcrumbs@npm:^4.2.1-pre.619":
   version: 4.2.1-pre.619
   resolution: "@openmrs/esm-breadcrumbs@npm:4.2.1-pre.619"

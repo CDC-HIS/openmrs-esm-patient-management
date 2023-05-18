@@ -72,6 +72,7 @@ const PatientSearchResults = React.forwardRef<HTMLDivElement, PatientSearchResul
           const patientIdentifiers = patient.identifier.filter((identifier) =>
             config.defaultIdentifierTypes.includes(identifier.identifierType.uuid),
           );
+          const isDeceased = Boolean(patient?.deceasedDateTime);
           return (
             <ConfigurableLink
               onClick={(evt) => selectPatientAction(evt, indx)}
@@ -79,7 +80,7 @@ const PatientSearchResults = React.forwardRef<HTMLDivElement, PatientSearchResul
                 patientUuid: patient.id,
               })}/${encodeURIComponent(config.search.redirectToPatientDashboard)}`}
               key={patient.id}
-              className={styles.patientSearchResult}>
+              className={`${styles.patientSearchResult} ${isDeceased ? styles.deceased : ''}`}>
               <div className={styles.patientAvatar} role="img">
                 <ExtensionSlot
                   extensionSlotName="patient-photo-slot"
@@ -91,11 +92,20 @@ const PatientSearchResults = React.forwardRef<HTMLDivElement, PatientSearchResul
                 />
               </div>
               <div>
-                <h2 className={styles.patientName}>{`${patient.name?.[0]?.given?.join(' ')} ${
-                  patient.name?.[0]?.family
-                }`}</h2>
+                <div className={styles.flexRow}>
+                  <h2 className={styles.patientName}>{`${patient.name?.[0]?.given?.join(' ')} ${
+                    patient.name?.[0]?.family
+                  }`}</h2>
+                  <ExtensionSlot
+                    extensionSlotName="patient-banner-tags-slot"
+                    state={{ patient }}
+                    className={styles.flexRow}
+                    select={(extensions) => extensions.filter((ext) => ext.name === 'deceased-patient-tag')}
+                  />
+                </div>
                 <p className={styles.demographics}>
-                  {getGender(patient.gender)} <span className={styles.middot}>&middot;</span> {age(patient.birthDate)}{' '}
+                  {getGender(patient.gender)} <span className={styles.middot}>&middot;</span> {age(patient.birthDate)}
+                  <span className={styles.middot}>&middot;</span>
                   {config.defaultIdentifierTypes.length ? (
                     <>
                       {patientIdentifiers.length > 1 ? (
@@ -131,7 +141,7 @@ export const SearchResultSkeleton = () => {
         />
       </div>
       <div>
-        <h2 className={styles.patientName}>
+        <h2>
           <SkeletonText />
         </h2>
         <span className={styles.demographics}>
@@ -148,7 +158,7 @@ const PatientIdentifier: React.FC<{ identifiers: Array<Identifier> }> = ({ ident
     <>
       {identifiers.map((identifier) => (
         <>
-          <Tag className={styles.configuredTag} type="warm-gray" title={identifier.identifierType.display}>
+          <Tag size="sm" className={styles.configuredTag} type="warm-gray" title={identifier.identifierType.display}>
             {identifier.identifierType.display}
           </Tag>
           <span className={styles.configuredLabel}>{identifier.identifier}</span>
@@ -163,14 +173,14 @@ const CustomIdentifier: React.FC<{ patient: SearchedPatient; identifierName: str
   identifierName,
 }) => {
   const identifier = patient.identifiers.find((identifier) => identifier.identifierType.display === identifierName);
-  return (
+  return identifier ? (
     <>
-      <Tag className={styles.configuredTag} type="warm-gray" title={identifier.display}>
+      <Tag size="sm" className={styles.configuredTag} type="warm-gray" title={identifier.display}>
         {identifier.identifierType.display}
       </Tag>
       <span className={styles.configuredLabel}>{identifier.identifier}</span>
     </>
-  );
+  ) : null;
 };
 
 export default PatientSearchResults;

@@ -1,10 +1,9 @@
-import React, { CSSProperties, useMemo } from 'react';
+import React, { CSSProperties, useState } from 'react';
 import {
   DataTable,
   DataTableCustomRenderProps,
   DataTableHeader,
   DataTableSkeleton,
-  Layer,
   Table,
   TableBody,
   TableContainer,
@@ -12,51 +11,64 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Search,
-  SearchProps,
-  InlineLoading,
+  Layer,
   Pagination,
+  InlineLoading,
+  Search,
 } from '@carbon/react';
+import orderBy from 'lodash-es/orderBy';
 import { Star, StarFilled } from '@carbon/react/icons';
-import { useSession, ConfigurableLink, useLayoutType, isDesktop, usePagination } from '@openmrs/esm-framework';
+import {
+  useSession,
+  ConfigurableLink,
+  useLayoutType,
+  isDesktop,
+  ErrorState,
+  usePagination,
+  useConfig,
+} from '@openmrs/esm-framework';
+import { ConfigSchema } from '../config-schema';
 import styles from './patient-list-list.scss';
-import debounce from 'lodash-es/debounce';
 import { PatientList } from '../api/types';
 import { updatePatientList } from '../api/api-remote';
 import { PatientListEmptyState } from './empty-state/empty-state.component';
+import { useTranslation } from 'react-i18next';
 
-interface PatientListTableProps {
+interface PatientListTableContainerProps {
   style?: CSSProperties;
   patientLists: Array<PatientList>;
   loading?: boolean;
-  fetching?: boolean;
   headers?: Array<DataTableHeader<keyof PatientList>>;
   refetch(): void;
-  search: {
-    onSearch(searchTerm: string): any;
-    placeHolder: string;
-    currentSearchTerm?: string;
-    otherSearchProps?: SearchProps;
-  };
   listType: string;
   handleCreate?: () => void;
+  error: Error;
+  isValidating: boolean;
+  searchTerm: string;
+  setSearchTerm: (searchString: string) => void;
 }
 
-const PatientListTable: React.FC<PatientListTableProps> = ({
+const PatientListTableContainer: React.FC<PatientListTableContainerProps> = ({
   style,
   patientLists = [],
   loading = false,
-  fetching = false,
   headers,
   refetch,
-  search,
   listType,
   handleCreate,
+  error,
+  isValidating,
+  searchTerm,
+  setSearchTerm,
 }) => {
+  const { t } = useTranslation();
   const userId = useSession()?.user.uuid;
   const layout = useLayoutType();
+  const config = useConfig() as ConfigSchema;
+  const pageSizes = [10, 20, 25, 50];
+  const [pageSize, setPageSize] = useState(config.patientListsToShow ?? 20);
+  const [sortParams, setSortParams] = useState({ key: '', order: 'none' });
 
-  const handleSearch = useMemo(() => debounce((searchTerm) => search.onSearch(searchTerm), 300), []);
   const handleToggleStarred = async (patientListId: string, isStarred: boolean) => {
     if (userId) {
       await updatePatientList(patientListId, { isStarred });
@@ -64,141 +76,150 @@ const PatientListTable: React.FC<PatientListTableProps> = ({
     }
   };
 
-  const { results, goTo, currentPage } = usePagination(patientLists, 10);
+  const { key, order } = sortParams;
+  const sortedData = order === 'DESC' ? orderBy(patientLists, [key], ['desc']) : orderBy(patientLists, [key], ['asc']);
 
-  const pageSizes = useMemo(() => {
-    const numberOfPages = Math.ceil(patientLists.length / 10);
-    return [...Array(numberOfPages).keys()].map((x) => {
-      return (x + 1) * 10;
-    });
-  }, [patientLists]);
+  function customSortRow(listA, listB, { sortDirection, sortStates, ...props }) {
+    const { key } = props;
+    setSortParams({ key, order: sortDirection });
+  }
+  const { paginated, goTo, results, currentPage } = usePagination(sortedData, pageSize);
 
-  if (loading) {
-    return (
-      <div className={styles.container}>
+  const handleSearch = (str) => {
+    setSearchTerm(str);
+    goTo(1);
+  };
+
+  return (
+    <div>
+      <div id="table-tool-bar" className={styles.searchContainer}>
+        <div>{isValidating && <InlineLoading />}</div>
+        <Layer>
+          <Search
+            id="patient-list-search"
+            labelText=""
+            size={isDesktop(layout) ? 'sm' : 'lg'}
+            className={styles.search}
+            onChange={(evnt) => handleSearch(evnt.target.value)}
+            value={searchTerm}
+            placeholder={t('searchThisList', 'Search this list')}
+          />
+        </Layer>
+      </div>
+      {loading ? (
         <DataTableSkeleton
           style={{ ...style, backgroundColor: 'transparent', padding: '0rem' }}
           showToolbar={false}
           showHeader={false}
-          rowCount={4}
-          columnCount={4}
+          rowCount={pageSize}
+          columnCount={headers.length}
           zebra
+          compact={isDesktop(layout)}
         />
-      </div>
-    );
-  }
+      ) : error ? (
+        <ErrorState error={error} headerTitle={t('patientLists', 'Patient Lists')} />
+      ) : !patientLists?.length ? (
+        <PatientListEmptyState launchForm={handleCreate} listType={listType} />
+      ) : (
+        <>
+          <DataTable rows={results} headers={headers} size={isDesktop(layout) ? 'sm' : 'lg'} sortRow={customSortRow}>
+            {({
+              rows,
+              headers,
+              getHeaderProps,
+              getRowProps,
+              getTableProps,
+              getTableContainerProps,
+            }: DataTableCustomRenderProps) => (
+              <TableContainer style={{ ...style, backgroundColor: 'transparent' }} {...getTableContainerProps()}>
+                <Table {...getTableProps()} data-testid="patientListsTable" isSortable useZebraStyles>
+                  <TableHead>
+                    <TableRow>
+                      {headers.map((header) => (
+                        <TableHeader
+                          className={isDesktop(layout) ? styles.desktopHeader : styles.tabletHeader}
+                          key={header.key}
+                          {...getHeaderProps({ header })}
+                          isSortable>
+                          {header.header}
+                        </TableHeader>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody className={styles.tableBody}>
+                    {rows.map((row, index) => (
+                      <TableRow
+                        className={isDesktop(layout) ? styles.desktopRow : styles.tabletRow}
+                        key={row.id}
+                        {...getRowProps({ row })}>
+                        {row.cells.map((cell) => {
+                          switch (cell.info.header) {
+                            case 'display':
+                              return (
+                                <TableCell className={styles.tableCell} key={cell.id}>
+                                  <ConfigurableLink
+                                    className={styles.link}
+                                    to={`\${openmrsSpaBase}/home/patient-lists/${patientLists[index]?.id}`}>
+                                    {cell.value}
+                                  </ConfigurableLink>
+                                </TableCell>
+                              );
 
-  if (patientLists?.length) {
-    return (
-      <div>
-        <div id="table-tool-bar" className={styles.searchContainer}>
-          <div>{fetching && <InlineLoading />}</div>
-          <div>
+                            case 'isStarred':
+                              return (
+                                <TableCell
+                                  key={cell.id}
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() => handleToggleStarred(row.id, !cell.value)}>
+                                  {cell.value ? (
+                                    <StarFilled size={16} className={styles.interactiveText01} />
+                                  ) : (
+                                    <Star size={16} className={styles.interactiveText01} />
+                                  )}
+                                </TableCell>
+                              );
+
+                            case 'type':
+                              return <TableCell key={cell.id}>{cell.value}</TableCell>;
+
+                            default:
+                              return <TableCell key={cell.id}>{cell.value}</TableCell>;
+                          }
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </DataTable>
+          {paginated && (
             <Layer>
-              <Search
-                id="patient-list-search"
-                placeholder={search.placeHolder}
-                labelText=""
-                size={isDesktop(layout) ? 'md' : 'lg'}
-                className={styles.search}
-                onChange={(evnt) => handleSearch(evnt.target.value)}
-                defaultValue={search.currentSearchTerm}
-                {...search?.otherSearchProps}
+              <Pagination
+                size={isDesktop(layout) ? 'sm' : 'lg'}
+                backwardText={t('previousPage', 'Previous page')}
+                forwardText={t('nextPage', 'Next page')}
+                itemsPerPageText={t('itemsPerPage', 'Items per page:')}
+                page={currentPage}
+                pageNumberText={t('pageNumber', 'Page number')}
+                pageSize={pageSize}
+                pageSizes={pageSizes}
+                totalItems={patientLists?.length}
+                onChange={({ page: newPage, pageSize: newPageSize }) => {
+                  if (newPageSize !== pageSize) {
+                    setPageSize(newPageSize);
+                  }
+                  if (newPage !== currentPage) {
+                    goTo(newPage);
+                  }
+                }}
               />
             </Layer>
-          </div>
-        </div>
-        <DataTable rows={results} headers={headers}>
-          {({
-            rows,
-            headers,
-            getHeaderProps,
-            getRowProps,
-            getTableProps,
-            getTableContainerProps,
-          }: DataTableCustomRenderProps) => (
-            <TableContainer style={{ ...style, backgroundColor: 'transparent' }} {...getTableContainerProps()}>
-              <Table {...getTableProps()} isSortable useZebraStyles>
-                <TableHead>
-                  <TableRow>
-                    {headers.map((header) => (
-                      <TableHeader
-                        className={isDesktop(layout) ? styles.desktopHeader : styles.tabletHeader}
-                        key={header.key}
-                        {...getHeaderProps({ header })}
-                        isSortable>
-                        {header.header}
-                      </TableHeader>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody className={styles.tableBody}>
-                  {rows.map((row, index) => (
-                    <TableRow
-                      className={isDesktop(layout) ? styles.desktopRow : styles.tabletRow}
-                      key={row.id}
-                      {...getRowProps({ row })}>
-                      {row.cells.map((cell) => {
-                        switch (cell.info.header) {
-                          case 'display':
-                            return (
-                              <TableCell className={styles.tableCell} key={cell.id}>
-                                <ConfigurableLink
-                                  className={styles.link}
-                                  to={`\${openmrsSpaBase}/patient-list/${patientLists[index]?.id}`}>
-                                  {cell.value}
-                                </ConfigurableLink>
-                              </TableCell>
-                            );
-
-                          case 'isStarred':
-                            return (
-                              <TableCell
-                                key={cell.id}
-                                style={{ cursor: 'pointer' }}
-                                onClick={() => handleToggleStarred(row.id, !cell.value)}>
-                                {cell.value ? (
-                                  <StarFilled size={16} className={styles.interactiveText01} />
-                                ) : (
-                                  <Star size={16} className={styles.interactiveText01} />
-                                )}
-                              </TableCell>
-                            );
-
-                          case 'type':
-                            return <TableCell key={cell.id}>{cell.value}</TableCell>;
-
-                          default:
-                            return <TableCell key={cell.id}>{cell.value}</TableCell>;
-                        }
-                      })}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
           )}
-        </DataTable>
-        <Pagination
-          backwardText="Previous page"
-          forwardText="Next page"
-          itemsPerPageText="Items per page:"
-          page={currentPage}
-          pageNumberText="Page Number"
-          pageSize={10}
-          onChange={({ page }) => goTo(page)}
-          pageSizes={pageSizes}
-          totalItems={patientLists.length ?? 0}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.container}>
-      <PatientListEmptyState launchForm={handleCreate} listType={listType} />
+        </>
+      )}
     </div>
   );
 };
 
-export default PatientListTable;
+export default PatientListTableContainer;

@@ -1,12 +1,12 @@
 import React, { useCallback, SyntheticEvent, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Dropdown, Layer, OnChangeData, TextArea, TextInput, ButtonSet } from '@carbon/react';
-import { useLayoutType, showToast, useSession, isDesktop } from '@openmrs/esm-framework';
+import { Button, Layer, TextArea, TextInput, ButtonSet } from '@carbon/react';
+import { useLayoutType, showToast, useSession, useConfig } from '@openmrs/esm-framework';
 import { createPatientList, editPatientList } from '../api/api-remote';
-import { useCohortTypes } from '../api/hooks';
 import { OpenmrsCohort, NewCohortData } from '../api/types';
 import Overlay from '../overlay.component';
 import styles from './create-edit-patient-list.scss';
+import { ConfigSchema } from '../config-schema';
 
 interface CreateEditPatientListProps {
   close: () => void;
@@ -22,29 +22,32 @@ const CreateEditPatientList: React.FC<CreateEditPatientListProps> = ({
   onSuccess = () => {},
 }) => {
   const { t } = useTranslation();
+  const config = useConfig() as ConfigSchema;
+  const session = useSession();
+  const [submitting, setSubmitting] = useState(false);
   const [cohortDetails, setCohortDetails] = useState<NewCohortData>({
     name: '',
     description: '',
-    cohortType: '',
-    location: '',
   });
   const isTablet = useLayoutType() === 'tablet';
   const user = useSession();
-  const { data: cohortTypes } = useCohortTypes();
 
   useEffect(() => {
     setCohortDetails({
       name: patientListDetails?.name || '',
       description: patientListDetails?.description || '',
-      cohortType: patientListDetails?.cohortType?.uuid || '',
-      location: user?.sessionLocation?.uuid,
     });
   }, [user, patientListDetails]);
 
   const createPL = useCallback(() => {
-    // set loading
+    // set submitting
+    setSubmitting(true);
     if (!edit) {
-      createPatientList(cohortDetails)
+      createPatientList({
+        ...cohortDetails,
+        location: session?.sessionLocation?.uuid,
+        cohortType: config?.myListCohortTypeUUID,
+      })
         .then(() =>
           showToast({
             title: t('successCreatedPatientList', 'Created patient list'),
@@ -54,17 +57,21 @@ const CreateEditPatientList: React.FC<CreateEditPatientListProps> = ({
             kind: 'success',
           }),
         )
-        .then(onSuccess)
+        .then(() => {
+          onSuccess();
+          setSubmitting(false);
+        })
         .then(close)
-        .catch(() =>
+        .catch(() => {
           showToast({
             title: t('error', 'Error'),
             description: `${t('errorCreatePatientListDescription', "Couldn't create patient list")} : ${
               cohortDetails?.name
             }`,
             kind: 'error',
-          }),
-        );
+          });
+          setSubmitting(false);
+        });
     } else {
       editPatientList(patientListDetails.uuid, cohortDetails)
         .then(() =>
@@ -74,19 +81,32 @@ const CreateEditPatientList: React.FC<CreateEditPatientListProps> = ({
             kind: 'success',
           }),
         )
-        .then(onSuccess)
+        .then(() => {
+          onSuccess();
+          setSubmitting(false);
+        })
         .then(close)
-        .catch(() =>
+        .catch(() => {
           showToast({
             title: t('error', 'Error'),
             description: `${t('errorUpdatePatientListDescription', "Couldn't update patient list")} : ${
               cohortDetails?.name
             }`,
             kind: 'error',
-          }),
-        );
+          });
+          setSubmitting(false);
+        });
     }
-  }, [close, user, cohortDetails]);
+  }, [
+    close,
+    cohortDetails,
+    config?.myListCohortTypeUUID,
+    patientListDetails?.uuid,
+    onSuccess,
+    session.sessionLocation?.uuid,
+    t,
+    edit,
+  ]);
 
   const handleChange = useCallback(
     ({ currentTarget }: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -98,16 +118,6 @@ const CreateEditPatientList: React.FC<CreateEditPatientListProps> = ({
     [setCohortDetails],
   );
 
-  const handleTypeChange = useCallback(
-    ({ selectedItem }: OnChangeData) => {
-      setCohortDetails((cohortDetails) => ({
-        ...cohortDetails,
-        cohortType: cohortTypes?.find((type) => type?.display === selectedItem)?.uuid,
-      }));
-    },
-    [setCohortDetails, cohortTypes],
-  );
-
   return (
     <Overlay
       header={!edit ? t('newPatientListHeader', 'New patient list') : t('editPatientListHeader', 'Edit patient list')}
@@ -117,13 +127,12 @@ const CreateEditPatientList: React.FC<CreateEditPatientListProps> = ({
           <Button onClick={close} kind="secondary" size="xl">
             {t('cancel', 'Cancel')}
           </Button>
-          <Button
-            onClick={createPL}
-            size="xl"
-            disabled={Object.values(cohortDetails)?.some(
-              (value) => value === '' || value === undefined || value === null,
-            )}>
-            {!edit ? t('createList', 'Create list') : t('editList', 'Edit list')}
+          <Button onClick={createPL} size="xl" disabled={submitting}>
+            {submitting
+              ? t('submitting', 'Submitting')
+              : !edit
+              ? t('createList', 'Create list')
+              : t('editList', 'Edit list')}
           </Button>
         </ButtonSet>
       }>
@@ -143,6 +152,7 @@ const CreateEditPatientList: React.FC<CreateEditPatientListProps> = ({
       <div className={styles.input}>
         <Layer level={isTablet ? 1 : 0}>
           <TextArea
+            id="list_description"
             name="description"
             onChange={handleChange}
             placeholder={t(
@@ -151,21 +161,6 @@ const CreateEditPatientList: React.FC<CreateEditPatientListProps> = ({
             )}
             labelText={t('newPatientListDescriptionLabel', 'Describe the purpose of this list in a few words')}
             value={cohortDetails?.description}
-          />
-        </Layer>
-      </div>
-      <div className={styles.input}>
-        <Layer level={isTablet ? 1 : 0}>
-          <Dropdown
-            id="cohortType"
-            label={t('selectCohortType', 'Select patient list type')}
-            titleText={t('newPatientListCohortTypeLabel', 'Choose the type for the new patient list')}
-            items={cohortTypes?.map((type) => type?.display) || []}
-            selectedItem={
-              cohortTypes?.find((type) => type.uuid === cohortDetails?.cohortType)?.display ||
-              cohortTypes?.find((type) => type.uuid === patientListDetails?.cohortType?.uuid)?.display
-            }
-            onChange={handleTypeChange}
           />
         </Layer>
       </div>

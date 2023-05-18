@@ -61,7 +61,6 @@ import {
   updateSelectedServiceUuid,
   useSelectedServiceName,
   useSelectedQueueLocationUuid,
-  useSelectedProviderRoomTimestamp,
   useIsPermanentProviderQueueRoom,
 } from '../helpers/helpers';
 import { buildStatusString, formatWaitTime, getTagType, timeDiffInMinutes } from '../helpers/functions';
@@ -256,7 +255,7 @@ function ActiveVisitsTable() {
   }, [providerUuid]);
 
   useEffect(() => {
-    if (differenceInTime >= 1 && isPermanentProviderQueueRoom == 'false') {
+    if (differenceInTime >= 1 && (isPermanentProviderQueueRoom == 'false' || isPermanentProviderQueueRoom === null)) {
       launchAddProviderRoomModal();
     }
   }, []);
@@ -270,36 +269,7 @@ function ActiveVisitsTable() {
       <div className={styles.container}>
         {useQueueTableTabs === false ? (
           <>
-            <div className={styles.headerBtnContainer}>
-              <UserHasAccess privilege="Manage Forms">
-                <Button
-                  size="sm"
-                  kind="ghost"
-                  renderIcon={(props) => <ArrowRight size={16} {...props} />}
-                  onClick={(selectedPatientUuid) => {
-                    setShowOverlay(true);
-                    setView(SearchTypes.QUEUE_SERVICE_FORM);
-                    setViewState({ selectedPatientUuid });
-                    setOverlayTitle(t('addNewQueueService', 'Add new queue service'));
-                  }}
-                  iconDescription={t('addNewQueue', 'Add new queue')}>
-                  {t('addNewService', 'Add new service')}
-                </Button>
-                <Button
-                  size="sm"
-                  kind="ghost"
-                  renderIcon={(props) => <ArrowRight size={16} {...props} />}
-                  onClick={(selectedPatientUuid) => {
-                    setShowOverlay(true);
-                    setView(SearchTypes.QUEUE_ROOM_FORM);
-                    setViewState({ selectedPatientUuid });
-                    setOverlayTitle(t('addNewQueueServiceRoom', 'Add new queue service room'));
-                  }}
-                  iconDescription={t('addNewQueueServiceRoom', 'Add new queue service room')}>
-                  {t('addNewServiceRoom', 'Add new service room')}
-                </Button>
-              </UserHasAccess>
-            </div>
+            <div className={styles.headerBtnContainer}></div>
             <div className={styles.headerContainer}>
               <div className={!isDesktop(layout) ? styles.tabletHeading : styles.desktopHeading}>
                 <h4>{t('patientsCurrentlyInQueue', 'Patients currently in queue')}</h4>
@@ -480,36 +450,6 @@ function ActiveVisitsTable() {
     <div className={styles.container}>
       {useQueueTableTabs === false ? (
         <>
-          <div className={styles.headerBtnContainer}>
-            <UserHasAccess privilege="Manage Forms">
-              <Button
-                size="sm"
-                kind="ghost"
-                renderIcon={(props) => <ArrowRight size={16} {...props} />}
-                onClick={(selectedPatientUuid) => {
-                  setShowOverlay(true);
-                  setView(SearchTypes.QUEUE_SERVICE_FORM);
-                  setViewState({ selectedPatientUuid });
-                  setOverlayTitle(t('addNewQueueService', 'Add new queue service'));
-                }}
-                iconDescription={t('addNewQueueService', 'Add new queue service')}>
-                {t('addNewService', 'Add new service')}
-              </Button>
-              <Button
-                size="sm"
-                kind="ghost"
-                renderIcon={(props) => <ArrowRight size={16} {...props} />}
-                onClick={(selectedPatientUuid) => {
-                  setShowOverlay(true);
-                  setView(SearchTypes.QUEUE_ROOM_FORM);
-                  setViewState({ selectedPatientUuid });
-                  setOverlayTitle(t('addNewQueueServiceRoom', 'Add new queue service room'));
-                }}
-                iconDescription={t('addNewQueueServiceRoom', 'Add new queue service room')}>
-                {t('addNewQueueRoom', 'Add new queue room')}
-              </Button>
-            </UserHasAccess>
-          </div>
           <div className={styles.headerContainer}>
             <div className={!isDesktop(layout) ? styles.tabletHeading : styles.desktopHeading}>
               <h4>{t('patientsCurrentlyInQueue', 'Patients currently in queue')}</h4>

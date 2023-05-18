@@ -8,12 +8,14 @@ import { useTranslation } from 'react-i18next';
 import { Field } from 'formik';
 
 export interface CodedPersonAttributeFieldProps {
+  id: string;
   personAttributeType: PersonAttributeTypeResponse;
   answerConceptSetUuid: string;
   label?: string;
 }
 
 export function CodedPersonAttributeField({
+  id,
   personAttributeType,
   answerConceptSetUuid,
   label,
@@ -29,16 +31,19 @@ export function CodedPersonAttributeField({
           <Field name={fieldName}>
             {({ field, form: { touched, errors }, meta }) => {
               return (
-                <Select
-                  id={`person-attribute-${personAttributeType.uuid}`}
-                  labelText={label ?? personAttributeType?.display}
-                  invalid={errors[fieldName] && touched[fieldName]}
-                  {...field}>
-                  <SelectItem value={null} text={t('selectAnOption', 'Select an option')} />
-                  {conceptAnswers.map((answer) => (
-                    <SelectItem key={answer.uuid} value={answer.uuid} text={answer.display} />
-                  ))}
-                </Select>
+                <>
+                  <Select
+                    id={id}
+                    name={`person-attribute-${personAttributeType.uuid}`}
+                    labelText={label ?? personAttributeType?.display}
+                    invalid={errors[fieldName] && touched[fieldName]}
+                    {...field}>
+                    <SelectItem value={''} text={t('selectAnOption', 'Select an option')} />
+                    {conceptAnswers.map((answer) => (
+                      <SelectItem key={answer.uuid} value={answer.uuid} text={answer.display} />
+                    ))}
+                  </Select>
+                </>
               );
             }}
           </Field>
@@ -49,7 +54,8 @@ export function CodedPersonAttributeField({
             {({ field, form: { touched, errors }, meta }) => {
               return (
                 <Input
-                  id={`person-attribute-${personAttributeType.uuid}`}
+                  id={id}
+                  name={`person-attribute-${personAttributeType.uuid}`}
                   labelText={label ?? personAttributeType?.display}
                   invalid={errors[fieldName] && touched[fieldName]}
                   {...field}

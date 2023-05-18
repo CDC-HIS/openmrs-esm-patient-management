@@ -62,7 +62,6 @@ const ChangeStatus: React.FC<ChangeStatusDialogProps> = ({ queueEntry, closeModa
         queueEntry?.statusUuid,
         endDate,
         sortWeight,
-        new AbortController(),
       ).then(
         ({ status }) => {
           if (status === 201) {
@@ -74,7 +73,7 @@ const ChangeStatus: React.FC<ChangeStatusDialogProps> = ({ queueEntry, closeModa
             });
             closeModal();
             mutate();
-            navigate({ to: `${window.spaBase}/home` });
+            navigate({ to: `${window.spaBase}/home/service-queues` });
           }
         },
         (error) => {
@@ -99,7 +98,6 @@ const ChangeStatus: React.FC<ChangeStatusDialogProps> = ({ queueEntry, closeModa
       t,
       closeModal,
       mutate,
-      selectedQueueLocation,
     ],
   );
 
@@ -132,6 +130,7 @@ const ChangeStatus: React.FC<ChangeStatusDialogProps> = ({ queueEntry, closeModa
                   setSelectedQueueLocation(event.target.value);
                   setEditLocation(true);
                 }}>
+                {!selectedQueueLocation ? <SelectItem text={t('selectOption', 'Select an option')} value="" /> : null}
                 {queueLocations?.length > 0 &&
                   queueLocations.map((location) => (
                     <SelectItem key={location.id} text={location.name} value={location.id}>

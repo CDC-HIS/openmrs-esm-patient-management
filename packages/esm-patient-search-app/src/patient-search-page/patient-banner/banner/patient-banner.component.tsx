@@ -33,7 +33,7 @@ const PatientBanner: React.FC<PatientBannerProps> = ({
   selectPatientAction,
 }) => {
   const { t } = useTranslation();
-  const overFlowMenuRef = React.useRef(null);
+  const overflowMenuRef = React.useRef(null);
   const showContactDetailsRef = React.useRef(null);
   const startVisitButtonRef = React.useRef(null);
   const { currentVisit } = useVisit(patientUuid);
@@ -80,9 +80,15 @@ const PatientBanner: React.FC<PatientBannerProps> = ({
     }
   };
 
+  const isDeceased = !!patient.person.deathDate;
+
   return (
     <>
-      <div className={styles.container} role="banner">
+      <div
+        className={`${styles.container} ${
+          isDeceased ? styles.deceasedPatientContainer : styles.activePatientContainer
+        }`}
+        role="banner">
         <ConfigurableLink
           to={`${interpolateString(config.search.patientResultUrl, {
             patientUuid: patientUuid,
@@ -110,42 +116,43 @@ const PatientBanner: React.FC<PatientBannerProps> = ({
         </ConfigurableLink>
         <div className={styles.buttonCol}>
           {!hideActionsOverflow && (
-            <div ref={overFlowMenuRef}>
+            <div className={styles.overflowMenuContainer} ref={overflowMenuRef}>
               <CustomOverflowMenuComponent
+                isDeceased={isDeceased}
                 menuTitle={
                   <>
                     <span className={styles.actionsButtonText}>{t('actions', 'Actions')}</span>{' '}
-                    <OverflowMenuVertical size={16} style={{ marginLeft: '0.5rem' }} />
+                    <OverflowMenuVertical className={styles.menu} size={16} />
                   </>
                 }
                 dropDownMenu={showDropdown}>
                 <ExtensionSlot
                   onClick={closeDropdownMenu}
                   extensionSlotName="patient-search-actions-slot"
-                  className={styles.overflowMenuItemList}
                   state={patientActionsSlotState}
                 />
               </CustomOverflowMenuComponent>
             </div>
           )}
-          {!currentVisit ? (
-            <ExtensionSlot
-              extensionSlotName="start-visit-button-slot"
-              state={{
-                patientUuid,
-              }}
-            />
-          ) : (
-            <Button
-              ref={showContactDetailsRef}
-              kind="ghost"
-              renderIcon={showContactDetails ? ChevronUp : ChevronDown}
-              iconDescription="Toggle contact details"
-              onClick={toggleContactDetails}
-              style={{ marginTop: '-0.25rem' }}>
-              {showContactDetails ? t('showLess', 'Show less') : t('showAllDetails', 'Show all details')}
-            </Button>
-          )}
+          {!isDeceased &&
+            (!currentVisit ? (
+              <ExtensionSlot
+                extensionSlotName="start-visit-button-slot"
+                state={{
+                  patientUuid,
+                }}
+              />
+            ) : (
+              <Button
+                ref={showContactDetailsRef}
+                kind="ghost"
+                renderIcon={showContactDetails ? ChevronUp : ChevronDown}
+                iconDescription="Toggle contact details"
+                onClick={toggleContactDetails}
+                style={{ marginTop: '-0.25rem' }}>
+                {showContactDetails ? t('showLess', 'Show less') : t('showAllDetails', 'Show all details')}
+              </Button>
+            ))}
         </div>
       </div>
       {showContactDetails && <ContactDetails address={patient.person.addresses} patientId={patient.uuid} />}

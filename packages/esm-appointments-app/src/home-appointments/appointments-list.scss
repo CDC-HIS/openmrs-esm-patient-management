@@ -12,6 +12,11 @@
   margin-bottom: spacing.$spacing-12;
 }
 
+.loadingContainer {
+  @extend .container;
+  border: none;
+}
+
 .headerContainer {
   display: flex;
   justify-content: space-between;
@@ -79,6 +84,8 @@
 
 .serviceContainer {
   display: flex;
+  align-items: center;
+  width: max-content;
 }
 
 .identifier {
@@ -167,10 +174,8 @@
 .tabletHeading {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   text-align: left;
   text-transform: capitalize;
-  margin-bottom: spacing.$spacing-05;
 
   h4 {
     @include type.type-style('heading-compact-02');

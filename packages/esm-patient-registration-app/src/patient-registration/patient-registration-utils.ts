@@ -1,4 +1,3 @@
-import { navigate } from '@openmrs/esm-framework';
 import * as Yup from 'yup';
 import {
   AddressValidationSchemaType,
@@ -8,6 +7,7 @@ import {
   PatientIdentifierValue,
   Encounter,
 } from './patient-registration-types';
+import { parseDate } from '@openmrs/esm-framework';
 import camelCase from 'lodash-es/camelCase';
 import capitalize from 'lodash-es/capitalize';
 
@@ -115,16 +115,13 @@ export function getFormValuesFromFhirPatient(patient: fhir.Patient) {
   result.givenName = patientName?.given[0];
   result.middleName = patientName?.given[1];
   result.familyName = patientName?.family;
-  result.unidentifiedPatient =
-    patientName.given[0] === 'UNKNOWN' && patientName.family === 'unknown' ? true : undefined;
-
   result.addNameInLocalLanguage = !!additionalPatientName ? true : undefined;
   result.additionalGivenName = additionalPatientName?.given[0];
   result.additionalMiddleName = additionalPatientName?.given[1];
   result.additionalFamilyName = additionalPatientName?.family;
 
   result.gender = capitalize(patient.gender);
-  result.birthdate = patient.birthDate ? (new Date(patient.birthDate) as any) : undefined;
+  result.birthdate = patient.birthDate ? parseDate(patient.birthDate) : undefined;
   result.telephoneNumber = patient.telecom ? patient.telecom[0].value : '';
 
   if (patient.deceasedBoolean || patient.deceasedDateTime) {

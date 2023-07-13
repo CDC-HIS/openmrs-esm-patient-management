@@ -21,6 +21,7 @@ import {
   latestFirstEncounter,
 } from './patient-registration-utils';
 import { useInitialPatientRelationships } from './section/patient-relationships/relationships.resource';
+import dayjs from 'dayjs';
 
 export function useInitialFormValues(patientUuid: string): [FormValues, Dispatch<FormValues>] {
   const { isLoading: isLoadingPatientToEdit, patient: patientToEdit } = usePatient(patientUuid);
@@ -34,14 +35,13 @@ export function useInitialFormValues(patientUuid: string): [FormValues, Dispatch
     givenName: '',
     middleName: '',
     familyName: '',
-    unidentifiedPatient: false,
     additionalGivenName: '',
     additionalMiddleName: '',
     additionalFamilyName: '',
     addNameInLocalLanguage: false,
     gender: '',
     birthdate: null,
-    yearsEstimated: null,
+    yearsEstimated: 0,
     monthsEstimated: 0,
     birthdateEstimated: false,
     telephoneNumber: '',
@@ -56,11 +56,22 @@ export function useInitialFormValues(patientUuid: string): [FormValues, Dispatch
   useEffect(() => {
     (async () => {
       if (patientToEdit) {
+        const birthdateEstimated = !/^\d{4}-\d{2}-\d{2}$/.test(patientToEdit.birthDate);
+        const [years = 0, months = 0] = patientToEdit.birthDate.split('-').map((val) => parseInt(val));
+        // Please refer: https://github.com/openmrs/openmrs-esm-patient-management/pull/697#issuecomment-1562706118
+        const estimatedMonthsAvailable = patientToEdit.birthDate.split('-').length > 1;
+        const yearsEstimated = birthdateEstimated ? Math.floor(dayjs().diff(patientToEdit.birthDate, 'month') / 12) : 0;
+        const monthsEstimated =
+          birthdateEstimated && estimatedMonthsAvailable ? dayjs().diff(patientToEdit.birthDate, 'month') % 12 : 0;
+
         setInitialFormValues({
           ...initialFormValues,
           ...getFormValuesFromFhirPatient(patientToEdit),
           address: getAddressFieldValuesFromFhirPatient(patientToEdit),
           ...getPhonePersonAttributeValueFromFhirPatient(patientToEdit),
+          birthdateEstimated: !/^\d{4}-\d{2}-\d{2}$/.test(patientToEdit.birthDate),
+          yearsEstimated,
+          monthsEstimated,
         });
       } else if (!isLoadingPatientToEdit && patientUuid) {
         const registration = await getPatientRegistration(patientUuid);
@@ -107,6 +118,7 @@ export function useInitialFormValues(patientUuid: string): [FormValues, Dispatch
             ? attribute.value?.uuid
             : attribute.value;
       });
+
       setInitialFormValues((initialFormValues) => ({
         ...initialFormValues,
         attributes: personAttributes,
@@ -153,6 +165,7 @@ export function usePatientUuidMap(
   fallback: PatientUuidMapType = {},
 ): [PatientUuidMapType, Dispatch<PatientUuidMapType>] {
   const { isLoading: isLoadingPatientToEdit, patient: patientToEdit } = usePatient(patientUuid);
+  const { data: attributes } = useInitialPersonAttributes(patientUuid);
   const [patientUuidMap, setPatientUuidMap] = useState(fallback);
 
   useEffect(() => {
@@ -164,6 +177,15 @@ export function usePatientUuidMap(
       );
     }
   }, [isLoadingPatientToEdit, patientToEdit, patientUuid]);
+
+  useEffect(() => {
+    if (attributes) {
+      setPatientUuidMap((prevPatientUuidMap) => ({
+        ...prevPatientUuidMap,
+        ...getPatientAttributeUuidMapForPatient(attributes),
+      }));
+    }
+  }, [attributes]);
 
   return [patientUuidMap, setPatientUuidMap];
 }
@@ -245,4 +267,12 @@ function useInitialPersonAttributes(personUuid: string) {
     };
   }, [data, error]);
   return result;
+}
+
+function getPatientAttributeUuidMapForPatient(attributes: Array<PersonAttributeResponse>) {
+  const attributeUuidMap = {};
+  attributes.forEach((attribute) => {
+    attributeUuidMap[`attribute.${attribute?.attributeType?.uuid}`] = attribute?.uuid;
+  });
+  return attributeUuidMap;
 }

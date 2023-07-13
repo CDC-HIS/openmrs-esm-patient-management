@@ -1,0 +1,115 @@
+import React, { SyntheticEvent, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import dayjs from 'dayjs';
+import {
+  Button,
+  ButtonSet,
+  ContentSwitcher,
+  DatePicker,
+  DatePickerInput,
+  RadioButton,
+  RadioButtonGroup,
+  Select,
+  SelectItem,
+  Switch,
+  TimePicker,
+  TimePickerSelect,
+  Toggle,
+  SkeletonText,
+  Tab,
+  TabList,
+  Tabs,
+  TabPanel,
+  TabPanels,
+  TextArea,
+  Layer,
+  Form,
+} from '@carbon/react';
+import {
+  useLocations,
+  ExtensionSlot,
+  usePatient,
+  useConfig,
+  showNotification,
+  showToast,
+  ConfigObject,
+} from '@openmrs/esm-framework';
+
+import first from 'lodash-es/first';
+import styles from './appointments-form.scss';
+import { mutate } from 'swr';
+import { useAppointmentDate, convertTime12to24 } from '../../../helpers';
+import { closeOverlay } from '../../../hooks/useOverlay';
+import { MappedAppointment, AppointmentPayload } from '../../../types';
+import {
+  useProviders,
+  useServices,
+  useAppointmentSummary,
+  toAppointmentDateTime,
+  saveAppointment,
+} from '../forms.resource';
+import { useInitialAppointmentFormValue, PatientAppointment } from '../useInitialFormValues';
+import { useCalendarDistribution } from '../workload-helper';
+import WorkloadCard from '../workload.component';
+import AppointmentWidget from '../../../appointment-widget/appointment-widget.component';
+import { BehaviorSubject } from 'rxjs';
+
+interface AppointmentFormProps {
+  closeWorkspace?: () => void;
+  closeOverlay?: () => void;
+  appointment?: MappedAppointment;
+  patientUuid?: string;
+  context: string;
+}
+const AppointmentForm: React.FC<AppointmentFormProps> = ({ closeWorkspace, appointment, patientUuid, context }) => {
+  const { t } = useTranslation();
+  const [hasSubmissibleValue, setHasSubmissibleValue] = React.useState(false);
+  const submissionNotifier = useMemo(() => new BehaviorSubject<{ isSubmitting: boolean }>({ isSubmitting: false }), []);
+  const initialAppointmentFormValues = useInitialAppointmentFormValue(appointment, patientUuid);
+  const [patientAppointment, setPatientAppointment] = useState<PatientAppointment>(initialAppointmentFormValues);
+  const { patient, isLoading } = usePatient(patientUuid ?? patientAppointment.patientUuid);
+  const handleSubmit = React.useCallback(
+    (event: SyntheticEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      submissionNotifier.next({ isSubmitting: true });
+    },
+    [submissionNotifier],
+  );
+
+  return (
+    <Form className={styles.form} onSubmit={handleSubmit}>
+      {isLoading ? (
+        <SkeletonText />
+      ) : (
+        <div className={styles.stickyFormHeader}>
+          <ExtensionSlot
+            name="patient-header-slot"
+            state={{
+              patient,
+              patientUuid: patientAppointment.patientUuid,
+            }}
+          />
+        </div>
+      )}
+      <AppointmentWidget
+        patientUuid={patientUuid}
+        closeWorkspace={closeWorkspace}
+        closeOverlay={closeOverlay}
+        setHasSubmissibleValue={setHasSubmissibleValue}
+        submissionNotifier={submissionNotifier}
+        context={context}
+        appointment={appointment}
+      />
+      <ButtonSet>
+        <Button onClick={closeOverlay} className={styles.button} kind="secondary">
+          {t('discard', 'Discard')}
+        </Button>
+        <Button className={styles.button} disabled={hasSubmissibleValue} kind="primary" type="submit">
+          {t('save', 'Save')}
+        </Button>
+      </ButtonSet>
+    </Form>
+  );
+};
+
+export default AppointmentForm;

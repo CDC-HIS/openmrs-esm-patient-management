@@ -2,12 +2,16 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SkeletonIcon, SkeletonText, Tag } from '@carbon/react';
 import { ExtensionSlot, useConfig, interpolateString, ConfigurableLink, age } from '@openmrs/esm-framework';
-import { Identifier, SearchedPatient } from '../types/index';
+import type { Identifier, SearchedPatient } from '../types';
 import styles from './compact-patient-banner.scss';
 
 interface PatientSearchResultsProps {
   patients: Array<SearchedPatient>;
-  selectPatientAction?: (evt: any, index: number) => void;
+  selectPatientAction?: (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    index: number,
+    patients: Array<SearchedPatient>,
+  ) => void;
 }
 
 const PatientSearchResults = React.forwardRef<HTMLDivElement, PatientSearchResultsProps>(
@@ -15,7 +19,7 @@ const PatientSearchResults = React.forwardRef<HTMLDivElement, PatientSearchResul
     const config = useConfig();
     const { t } = useTranslation();
 
-    const getGender = (gender) => {
+    const getGender = (gender: string) => {
       switch (gender) {
         case 'M':
           return t('male', 'Male');
@@ -68,21 +72,23 @@ const PatientSearchResults = React.forwardRef<HTMLDivElement, PatientSearchResul
 
     return (
       <div ref={ref}>
-        {fhirPatients.map((patient, indx) => {
+        {fhirPatients.map((patient, index) => {
           const patientIdentifiers = patient.identifier.filter((identifier) =>
             config.defaultIdentifierTypes.includes(identifier.identifierType.uuid),
           );
+          const isDeceased = Boolean(patient?.deceasedDateTime);
+
           return (
             <ConfigurableLink
-              onClick={(evt) => selectPatientAction(evt, indx)}
+              onClick={(event) => selectPatientAction(event, index, patients)}
               to={`${interpolateString(config.search.patientResultUrl, {
                 patientUuid: patient.id,
-              })}/${encodeURIComponent(config.search.redirectToPatientDashboard)}`}
+              })}`}
               key={patient.id}
-              className={styles.patientSearchResult}>
+              className={`${styles.patientSearchResult} ${isDeceased ? styles.deceased : ''}`}>
               <div className={styles.patientAvatar} role="img">
                 <ExtensionSlot
-                  extensionSlotName="patient-photo-slot"
+                  name="patient-photo-slot"
                   state={{
                     patientUuid: patient.id,
                     patientName: `${patient.name?.[0]?.given?.join(' ')} ${patient.name?.[0]?.family}`,
@@ -91,9 +97,16 @@ const PatientSearchResults = React.forwardRef<HTMLDivElement, PatientSearchResul
                 />
               </div>
               <div>
-                <h2 className={styles.patientName}>{`${patient.name?.[0]?.given?.join(' ')} ${
-                  patient.name?.[0]?.family
-                }`}</h2>
+                <div className={styles.flexRow}>
+                  <h2 className={styles.patientName}>{`${patient.name?.[0]?.given?.join(' ')} ${
+                    patient.name?.[0]?.family
+                  }`}</h2>
+                  <ExtensionSlot
+                    name="patient-banner-tags-slot"
+                    state={{ patient, patientUuid: patient.id }}
+                    className={styles.flexRow}
+                  />
+                </div>
                 <p className={styles.demographics}>
                   {getGender(patient.gender)} <span className={styles.middot}>&middot;</span> {age(patient.birthDate)}
                   <span className={styles.middot}>&middot;</span>
@@ -102,7 +115,7 @@ const PatientSearchResults = React.forwardRef<HTMLDivElement, PatientSearchResul
                       {patientIdentifiers.length > 1 ? (
                         <PatientIdentifier identifiers={patientIdentifiers} />
                       ) : (
-                        <CustomIdentifier patient={patients[indx]} identifierName={config.defaultIdentifier} />
+                        <CustomIdentifier patient={patients[index]} identifierName={config.defaultIdentifier} />
                       )}
                     </>
                   ) : (
@@ -164,14 +177,15 @@ const CustomIdentifier: React.FC<{ patient: SearchedPatient; identifierName: str
   identifierName,
 }) => {
   const identifier = patient.identifiers.find((identifier) => identifier.identifierType.display === identifierName);
-  return (
+
+  return identifier ? (
     <>
       <Tag size="sm" className={styles.configuredTag} type="warm-gray" title={identifier.display}>
         {identifier.identifierType.display}
       </Tag>
       <span className={styles.configuredLabel}>{identifier.identifier}</span>
     </>
-  );
+  ) : null;
 };
 
 export default PatientSearchResults;

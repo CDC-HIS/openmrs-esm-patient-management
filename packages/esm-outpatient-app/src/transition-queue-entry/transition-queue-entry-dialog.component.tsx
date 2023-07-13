@@ -16,6 +16,7 @@ import {
 } from '@openmrs/esm-framework';
 import {
   MappedVisitQueueEntry,
+  serveQueueEntry,
   updateQueueEntry,
   useVisitQueueEntries,
 } from '../active-visits/active-visits-table.resource';
@@ -66,15 +67,19 @@ const TransitionQueueEntryModal: React.FC<TransitionQueueEntryModalProps> = ({ q
     ).then(
       ({ status }) => {
         if (status === 201) {
-          showToast({
-            critical: true,
-            title: t('success', 'Success'),
-            kind: 'success',
-            description: t('patientAttendingService', 'Patient attending service'),
+          serveQueueEntry(queueEntry?.service, queueEntry?.visitQueueNumber, 'serving').then(({ status }) => {
+            if (status === 200) {
+              showToast({
+                critical: true,
+                title: t('success', 'Success'),
+                kind: 'success',
+                description: t('patientAttendingService', 'Patient attending service'),
+              });
+              closeModal();
+              mutate();
+              navigate({ to: `\${openmrsSpaBase}/patient/${queueEntry?.patientUuid}/chart` });
+            }
           });
-          closeModal();
-          mutate();
-          navigate({ to: `\${openmrsSpaBase}/patient/${queueEntry?.patientUuid}/chart` });
         }
       },
       (error) => {
@@ -149,7 +154,7 @@ const TransitionQueueEntryModal: React.FC<TransitionQueueEntryModalProps> = ({ q
           </section>
           <ExtensionSlot
             className={styles.visitSummaryContainer}
-            extensionSlotName="previous-visit-summary-slot"
+            name="previous-visit-summary-slot"
             state={{
               patientUuid: queueEntry?.patientUuid,
             }}

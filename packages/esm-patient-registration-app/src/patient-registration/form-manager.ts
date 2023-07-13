@@ -1,4 +1,4 @@
-import { FetchResponse, queueSynchronizationItem, Session } from '@openmrs/esm-framework';
+import { FetchResponse, openmrsFetch, queueSynchronizationItem, Session } from '@openmrs/esm-framework';
 import { patientRegistration } from '../constants';
 import {
   FormValues,
@@ -24,7 +24,6 @@ import {
   updatePatientIdentifier,
   saveEncounter,
 } from './patient-registration.resource';
-import isEqual from 'lodash-es/isEqual';
 import { RegistrationConfig } from '../config-schema';
 
 export type SavePatientForm = (
@@ -40,6 +39,7 @@ export type SavePatientForm = (
   savePatientTransactionManager: SavePatientTransactionManager,
   abortController?: AbortController,
 ) => Promise<string | void>;
+
 export class FormManager {
   static savePatientFormOffline: SavePatientForm = async (
     isNewPatient,
@@ -54,7 +54,7 @@ export class FormManager {
   ) => {
     const syncItem: PatientRegistration = {
       fhirPatient: FormManager.mapPatientToFhirPatient(
-        FormManager.getPatientToCreate(values, patientUuidMap, initialAddressFieldValues, []),
+        FormManager.getPatientToCreate(isNewPatient, values, patientUuidMap, initialAddressFieldValues, []),
       ),
       _patientRegistrationData: {
         isNewPatient,
@@ -102,6 +102,7 @@ export class FormManager {
     );
 
     const createdPatient = FormManager.getPatientToCreate(
+      isNewPatient,
       values,
       patientUuidMap,
       initialAddressFieldValues,
@@ -282,6 +283,7 @@ export class FormManager {
   }
 
   static getPatientToCreate(
+    isNewPatient: boolean,
     values: FormValues,
     patientUuidMap: PatientUuidMapType,
     initialAddressFieldValues: Record<string, any>,
@@ -304,7 +306,7 @@ export class FormManager {
         gender: values.gender.charAt(0),
         birthdate,
         birthdateEstimated: values.birthdateEstimated,
-        attributes: FormManager.getPatientAttributes(values),
+        attributes: FormManager.getPatientAttributes(isNewPatient, values, patientUuidMap),
         addresses: [values.address],
         ...FormManager.getPatientDeathInfo(values),
       },
@@ -336,22 +338,30 @@ export class FormManager {
     return names;
   }
 
-  static getPatientAttributes(values: FormValues) {
+  static getPatientAttributes(isNewPatient: boolean, values: FormValues, patientUuidMap: PatientUuidMapType) {
     const attributes: Array<AttributeValue> = [];
     if (values.attributes) {
-      for (const [key, value] of Object.entries(values.attributes)) {
-        attributes.push({
-          attributeType: key,
-          value,
+      Object.entries(values.attributes)
+        .filter(([, value]) => !!value)
+        .forEach(([key, value]) => {
+          attributes.push({
+            attributeType: key,
+            value,
+          });
         });
+
+      if (!isNewPatient && values.patientUuid) {
+        Object.entries(values.attributes)
+          .filter(([, value]) => !value)
+          .forEach(async ([key]) => {
+            const attributeUuid = patientUuidMap[`attribute.${key}`];
+            await openmrsFetch(`/ws/rest/v1/person/${values.patientUuid}/attribute/${attributeUuid}`, {
+              method: 'DELETE',
+            }).catch((err) => {
+              console.error(err);
+            });
+          });
       }
-    }
-    if (values.unidentifiedPatient) {
-      attributes.push({
-        // The UUID of the 'Unknown Patient' attribute-type will always be static across all implementations of OpenMRS
-        attributeType: '8b56eac7-5c76-4b9c-8c6f-1deab8d3fc47',
-        value: 'true',
-      });
     }
 
     return attributes;

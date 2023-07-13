@@ -16,11 +16,13 @@ import {
 } from '@openmrs/esm-framework';
 import { Identifer, MappedServiceQueueEntry, QueueServiceInfo } from '../types';
 import { useQueueLocations } from '../patient-search/hooks/useQueueLocations';
+import isToday from 'dayjs/plugin/isToday';
 
 export type QueuePriority = 'Emergency' | 'Not Urgent' | 'Priority' | 'Urgent';
 export type MappedQueuePriority = Omit<QueuePriority, 'Urgent'>;
 export type QueueService = 'Clinical consultation' | 'Triage';
 export type QueueStatus = 'Finished Service' | 'In Service' | 'Waiting';
+dayjs.extend(isToday);
 
 export interface VisitQueueEntry {
   queueEntry: VisitQueueEntry;
@@ -249,11 +251,9 @@ export function useVisitQueueEntries(currServiceName: string, locationUuid: stri
   if (!currServiceName || currServiceName == t('all', 'All')) {
     mappedVisitQueueEntries = data?.data?.results
       ?.map(mapVisitQueueEntryProperties)
-      .filter(({ visitStartDateTime }) => dayjs(visitStartDateTime).isToday());
+      .filter((data) => dayjs(data.visitStartDateTime).isToday());
   } else {
-    mappedVisitQueueEntries = data?.data?.results
-      ?.map(mapVisitQueueEntryProperties)
-      .filter((data) => data.service === currServiceName && dayjs(data.visitStartDateTime).isToday());
+    mappedVisitQueueEntries = data?.data?.results?.map(mapVisitQueueEntryProperties);
   }
 
   return {
@@ -347,9 +347,7 @@ export function useServiceQueueEntries(service: string, locationUuid: string) {
     patientUuid: visitQueueEntry.queueEntry ? visitQueueEntry?.queueEntry.uuid : '--',
   });
 
-  const mappedServiceQueueEntries = data?.data?.results
-    ?.map(mapServiceQueueEntryProperties)
-    .filter(({ returnDate }) => dayjs(returnDate).isToday());
+  const mappedServiceQueueEntries = data?.data?.results?.map(mapServiceQueueEntryProperties);
 
   return {
     serviceQueueEntries: mappedServiceQueueEntries ? mappedServiceQueueEntries : [],
@@ -419,4 +417,21 @@ export async function generateVisitQueueNumber(
       signal: abortController.signal,
     },
   );
+}
+
+export function serveQueueEntry(servicePointName: string, ticketNumber: string, status: string) {
+  const abortController = new AbortController();
+
+  return openmrsFetch(`/ws/rest/v1/queueutil/assignticket`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    signal: abortController.signal,
+    body: {
+      servicePointName,
+      ticketNumber,
+      status,
+    },
+  });
 }
